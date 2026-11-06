@@ -1,0 +1,5 @@
+import {_electron as electron} from 'playwright';
+import path from 'node:path';
+const root=process.cwd();const app=await electron.launch({...(process.env.WORKSHOP_EXE?{executablePath:process.env.WORKSHOP_EXE,args:[]}:{args:[root]}),env:{...process.env,WORKSHOP_TEST:'1'}});
+try{const page=await app.firstWindow();page.on('pageerror',e=>console.log(e.message));await page.waitForSelector('#demo');await app.evaluate(({dialog},f)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[f]});},path.resolve(root,'../../reports/jiggle-cartoon/chain.jiggle.json'));await page.locator('#open').evaluate(n=>n.click());await page.waitForFunction(()=>{try{return window.workshopInspect?.().project.name==='67 rainbow chain necklace'}catch{return false}});await page.waitForFunction(()=>{try{return !!window.workshopInspect?.().meshWorld}catch{return false}});await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));await page.locator('#stage').screenshot({path:path.resolve(root,'../../reports/jiggle-cartoon/'+(process.env.CASE||'before')+'.png')});}finally{await app.close();}
+

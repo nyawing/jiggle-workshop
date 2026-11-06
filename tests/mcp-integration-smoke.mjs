@@ -1,0 +1,45 @@
+// Official MCP SDK -> loopback HTTP -> Electron IPC -> actual editor -> viewport PNG.
+import {_electron as electron} from 'playwright';import {Client} from '@modelcontextprotocol/sdk/client/index.js';import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import {mkdtemp,readFile,writeFile,copyFile} from 'node:fs/promises';import os from 'node:os';import path from 'node:path';import assert from 'node:assert/strict';
+const root=process.cwd(),temp=await mkdtemp(path.join(os.tmpdir(),'workshop-mcp-'));
+const app=await electron.launch({...(process.env.WORKSHOP_EXE?{executablePath:process.env.WORKSHOP_EXE,args:[]}:{args:[root]}),env:{...process.env,WORKSHOP_TEST:'1',WORKSHOP_TEST_DATA:temp}});let client;
+try{
+ const page=await app.firstWindow();page.setDefaultTimeout(20000);const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
+ await page.waitForSelector('#mcpSettings');assert.equal((await page.evaluate(()=>window.workshop.mcpControl({action:'status'}))).enabled,false);
+ await page.locator('#demo').click();await page.waitForFunction(()=>{try{return !!window.workshopInspect().meshWorld}catch{return false}});
+ await page.locator('#mcpSettings').click();await page.locator('#mcpToggle').click();await page.waitForFunction(()=>document.querySelector('#mcpState').textContent.startsWith('Включено'));
+ const info=await page.evaluate(()=>window.workshop.mcpControl({action:'config',version:1}));const configuration=JSON.parse(info.config),entry=configuration.mcp['jiggle-workshop'];assert(entry.headers.Authorization.startsWith('Bearer '));
+ const unauthorized=await fetch(entry.url,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});assert.equal(unauthorized.status,401);
+ const second=JSON.parse((await page.evaluate(()=>window.workshop.mcpControl({action:'config',version:2}))).config);assert.equal(second.mcp.servers['jiggle-workshop'].url,entry.url);
+ await page.locator('#closeMcp').click();client=new Client({name:'workshop-integration-test',version:'1.0'},{capabilities:{}});await client.connect(new StreamableHTTPClientTransport(new URL(entry.url),{requestInit:{headers:entry.headers}}));
+ const tools=await client.listTools();assert(tools.tools.some(t=>t.name==='screenshot'));assert(tools.tools.some(t=>t.name==='brush_stroke'));assert(tools.tools.some(t=>t.name==='mirror_weights'));const examples=await client.callTool({name:'get_examples',arguments:{}});assert(JSON.parse(examples.content[0].text).examples.length===3);const reference=await client.callTool({name:'get_examples',arguments:{id:'curved-ears'}});assert(reference.content.some(c=>c.type==='image'));assert(JSON.parse(reference.content[0].text)._guide);
+ const call=async(name,args={})=>{const r=await client.callTool({name,arguments:args});assert(!r.isError,JSON.stringify(r));return r;};
+ const data=r=>JSON.parse(r.content.find(c=>c.type==='text').text);
+ const original=await page.evaluate(()=>window.workshopInspect().project.geometry);assert((data(await call('get_state'))).vertexCount>0);
+ let r=await call('create_chain',{start:[0,1,0],end:[0,-1,0],name:'MCP test'});let state=data(r);assert.equal(state.chains.length,1);const rootName=state.activeChain;
+ await call('select_surfaces',{components:[state.components[0].id],mode:'replace',isolated:true});state=data(await call('get_state'));assert.equal(state.selectedSurfaces.length,1);
+ await call('set_weights',{operation:'set',vertices:[0],weight:.6});assert(Math.abs(data(await call('get_vertices',{limit:1})).vertices[0].weight-.6)<1e-5);
+ await call('undo');assert.equal(data(await call('get_vertices',{limit:1})).vertices[0].weight,0);
+ await call('move_bone',{index:2,position:[.15,-1,0]});await call('undo');await call('mirror_chain',{index:1,axis:0});assert.equal(data(await call('get_state')).chains.length,2);await call('undo');
+ await call('select_chain',{name:rootName});await call('automatic_weights');assert((await page.evaluate(()=>window.workshopInspect().project.mask)).some(w=>w>0));
+ const screenshot=await call('screenshot',{view:'front',display:'weights'});const block=screenshot.content.find(c=>c.type==='image');assert.equal(block.mimeType,'image/png');const image=Buffer.from(block.data,'base64');assert.equal(image.subarray(1,4).toString(),'PNG');const metadata=data(screenshot);const bounds=await page.locator('canvas[data-engine]').boundingBox();assert(image.readUInt32BE(16)<=Math.ceil(bounds.width));assert(image.readUInt32BE(20)<=Math.ceil(bounds.height));assert(!('texture' in metadata));
+ await writeFile(path.resolve(root,'../../reports/workshop-mcp-viewport.png'),image);
+ const point=data(await call('get_vertices',{limit:1,screen:true})).vertices[0].screen;
+ await call('brush_stroke',{points:[[Math.max(0,Math.min(bounds.width,point.x)),Math.max(0,Math.min(bounds.height,point.y))]],operation:'set',weight:.4,radius:28,hardness:1,through:true});
+ const oldSettings=data(await call('get_state')).settings;await call('configure_physics',{stiffness:.25,damping:.35});assert.equal(data(await call('get_state')).settings.stiffness,.25);await call('undo');assert.deepEqual(data(await call('get_state')).settings,oldSettings);
+ await call('simulate',{running:true});assert.equal(data(await call('get_state')).simulation,true);await call('simulate',{running:false});
+ const save=path.join(temp,'saved.jiggle.json');await app.evaluate(({dialog},file)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:file});},save);await call('save_project');const saved=JSON.parse(await readFile(save,'utf8'));assert.deepEqual(saved.geometry,original);
+ const failed=await client.callTool({name:'export_accessory',arguments:{}});assert.equal(failed.isError,true,'demo has no original accessory to export');
+ const rejected=await client.callTool({name:'import_accessory',arguments:{reference:'https://www.nyawing.com/catalog/1'}});assert.equal(rejected.isError,true,'dirty import requires explicit discard');
+ const fixture=path.join(temp,'fixture.rbxm');await copyFile(path.join(root,'tests/fixture.rbxm'),fixture);
+ const raw=Buffer.alloc(25+3*40+12);raw.write('version 2.00\n');raw.writeUInt16LE(12,13);raw[15]=40;raw[16]=12;raw.writeUInt32LE(3,17);raw.writeUInt32LE(1,21);
+ [[0,1,0],[-.5,-1,0],[.5,-1,0]].forEach((position,i)=>{[...position,0,0,1,0,0].forEach((n,j)=>raw.writeFloatLE(n,25+i*40+j*4));raw.fill(255,25+i*40+36,25+i*40+40);});[0,1,2].forEach((n,i)=>raw.writeUInt32LE(n,145+i*4));await writeFile(path.join(temp,'987.mesh'),raw);
+ await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},fixture);await page.locator('#open').evaluate(n=>n.click());await page.waitForFunction(()=>document.querySelector('#label').textContent.startsWith('Fixture'));
+ const first=data(await call('create_chain',{start:[.25,1,0],end:[.25,-1,0]})).activeChain;await call('set_weights',{operation:'set',vertices:[2],weight:.5});const copied=data(await call('mirror_chain',{index:1,axis:0}));const mir=data(await call('mirror_weights',{sourceChain:first,targetChain:copied.activeChain,axis:0}));assert(mir.mirrorSummary.matched>0);assert(Math.abs(data(await call('get_vertices',{offset:1,limit:1})).vertices[0].weight-.5)<1e-5);
+ const beforeCleanup=data(await call('get_state'));assert(beforeCleanup.components[0].weightedVertices>=2);assert(Object.keys(beforeCleanup.components[0].weightOwners).length>=2);
+ await call('select_surfaces',{components:[0],mode:'replace'});assert.equal(data(await call('get_state')).components[0].weightedVertices,beforeCleanup.components[0].weightedVertices,'selection does not erase');
+ const cleaned=data(await call('set_weights',{operation:'erase',allChains:true}));assert.equal(cleaned.cleanupSummary.remainingNonzero,0);assert.equal(cleaned.components[0].weightedVertices,0);assert.equal(cleaned.components[0].maxWeight,0);await call('undo');assert.equal(data(await call('get_state')).components[0].weightedVertices,beforeCleanup.components[0].weightedVertices);
+ const zip=path.join(temp,'export.zip');await app.evaluate(({dialog},file)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:file});},zip);const exported=data(await call('export_accessory'));assert.equal(exported.cancelled,false);assert.equal((await readFile(zip)).subarray(0,2).toString(),'PK');
+ await client.close();client=null;await page.evaluate(()=>window.workshop.mcpControl({action:'disable'}));assert.equal((await page.evaluate(()=>window.workshop.mcpControl({action:'status'}))).enabled,false);await assert.rejects(()=>fetch(entry.url));
+ assert.deepEqual(errors,[]);console.log('PASS official MCP SDK: authentication, commands, undo, screenshots, simulation, save, invalid export, disable');
+}finally{if(client)await client.close();await app.close();}

@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 1,
+  "id": "cherry",
+  "title": "Small cherry on a rigid hat",
+  "provenance": "synthetic authored reference",
+  "validation": {
+    "static": true,
+    "userApproved": false,
+    "physicsSimulated": false
+  },
+  "coordinates": {
+    "space": "mesh-local",
+    "units": "normalized example scale",
+    "bounds": {
+      "min": [
+        -1,
+        -1,
+        -1
+      ],
+      "max": [
+        1,
+        1,
+        1
+      ]
+    },
+    "warning": "Numeric example coordinates: inspect live bounds and adapt; never blindly copy to a live accessory."
+  },
+  "chains": [
+    {
+      "name": "cherry",
+      "controlPoints": [
+        [
+          0,
+          0.3,
+          0
+        ],
+        [
+          0,
+          0.56,
+          0.03
+        ]
+      ],
+      "pointCount": 2,
+      "createChainSegments": 1,
+      "halfWidth": 0.11
+    }
+  ],
+  "rigidRegions": [
+    {
+      "kind": "hat",
+      "weight": 0,
+      "yRange": [
+        0.06,
+        0.3
+      ],
+      "zRange": [
+        -0.4,
+        0.4
+      ]
+    }
+  ],
+  "desiredEnvelope": {
+    "interpolation": "smoothstep",
+    "longitudinalSamples": [
+      {
+        "t": 0,
+        "weight": 0,
+        "widthWeights": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "t": 0.25,
+        "weight": 0.15625,
+        "widthWeights": [
+          0.15625,
+          0.15625,
+          0.15625,
+          0.15625,
+          0.15625
+        ]
+      },
+      {
+        "t": 0.5,
+        "weight": 0.5,
+        "widthWeights": [
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5
+        ]
+      },
+      {
+        "t": 0.75,
+        "weight": 0.84375,
+        "widthWeights": [
+          0.84375,
+          0.84375,
+          0.84375,
+          0.84375,
+          0.84375
+        ]
+      },
+      {
+        "t": 1,
+        "weight": 1,
+        "widthWeights": [
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      }
+    ],
+    "acrossWidth": "uniform",
+    "widthCoordinates": [
+      -1,
+      -0.5,
+      0,
+      0.5,
+      1
+    ],
+    "rule": "At each longitudinal position, apply the same desired weight across the full width, including outer shells. No heavy center with blue outer holes."
+  },
+  "workflow": [
+    "Inspect actual mesh bounds, attachment and component ownership.",
+    "Use total point count minus one for create_chain.segments; move interior points to follow the bend.",
+    "RigidRoot is separate from chain point counts.",
+    "Assign intended surfaces, then run automatic weights and inspect full width coverage.",
+    "Desired envelope is a design target, not measured weights or a physics guarantee."
+  ],
+  "notes": [
+    "Two points total: attachment root and tip. Hat stays rigid.",
+    "Static validation only; not user-approved; no physics simulation."
+  ]
+}
