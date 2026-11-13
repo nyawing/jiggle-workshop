@@ -1,0 +1,41 @@
+// Exercise the owned Electron app in an invisible window with a local fixture.
+import {_electron as electron} from 'playwright';
+import assert from 'node:assert/strict';
+import {mkdtemp,writeFile,readFile,mkdir} from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import ts from 'typescript';
+import * as THREE from 'three';
+const root=process.cwd(),dir=await mkdtemp(path.join(os.tmpdir(),'jiggle-fitting-'));
+const source=await readFile(path.join(root,'src/model.ts'),'utf8');
+const js=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText.replace("'three'",JSON.stringify(import.meta.resolve('three')));
+const {createChain,skinForBones}=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
+const plane=new THREE.PlaneGeometry(2,3,8,12);
+const geometry={positions:Array.from(plane.attributes.position.array),normals:Array.from(plane.attributes.normal.array),uv:Array.from(plane.attributes.uv.array),indices:Array.from(plane.index.array),rigged:false};
+const bones=createChain(new THREE.Vector3(0,1.5,0),new THREE.Vector3(0,-1.5,0),4),mask=geometry.positions.filter((_,i)=>i%3===1).map(y=>(1.5-y)/3),skin=skinForBones(geometry,new Float32Array(mask),bones);
+const project={version:1,name:'Cape fitting test',catalogType:'back',appearance:{doubleSided:true},geometry,bones,...skin,mask,anchor:[0,1.5,0],tip:[0,-1.5,0],settings:{stiffness:.4,damping:.3,inertia:.7,elasticity:.65,windInfluence:0},attachments:[{name:'BodyBackAttachment',frame:[0,1.5,0,1,0,0,0,1,0,0,0,1]}]};
+const file=path.join(dir,'cape.jiggle.json');await writeFile(file,JSON.stringify(project));
+const app=await electron.launch({...(process.env.WORKSHOP_EXE?{executablePath:process.env.WORKSHOP_EXE,args:[]}:{args:[root]}),env:{...process.env,WORKSHOP_TEST:'1'}}),errors=[];
+try{
+ await app.evaluate(({dialog})=>{dialog.showMessageBoxSync=()=>1;});
+ const page=await app.firstWindow();page.on('pageerror',e=>errors.push(e.message));
+ await page.waitForSelector('#demo');
+ await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},file);
+ await page.locator('#open').evaluate(n=>n.click());
+ await page.waitForFunction(()=>document.querySelector('#status')?.textContent.startsWith('Проект восстановлен.'));
+ await page.locator('#tabBones').click();
+ assert.equal(await page.locator('#softWind').isVisible(),false);assert.equal(await page.locator('#useGravity').isVisible(),false);assert.equal(await page.locator('#motionMode').isVisible(),true);
+ await page.locator('#boneSelect').selectOption('2',{force:true});
+ await page.locator('#ribbonWind').check();
+ await page.locator('#ribbonDirection').selectOption('horizontal');
+ let settings=await page.evaluate(()=>window.workshopInspect().project.settings);
+ assert.equal(Object.keys(settings.ribbonBones).length,5);assert(Object.values(settings.ribbonBones).every(v=>v==='horizontal'));
+ await page.locator('#boneSelect').selectOption('3',{force:true});assert.equal(await page.locator('#ribbonWind').isChecked(),true);
+ await page.locator('#boneSelect').selectOption('2',{force:true});assert.equal(await page.locator('#ribbonWind').isChecked(),true);
+ assert.equal(await page.getByText('Применить ко всей цепочке',{exact:true}).count(),0);
+ settings=await page.evaluate(()=>window.workshopInspect().project.settings);assert.equal(Object.keys(settings.ribbonBones).length,5);
+ await page.locator('#ribbonWind').uncheck();assert.deepEqual(await page.evaluate(()=>window.workshopInspect().project.settings.ribbonBones),{});
+ assert.equal(await page.locator('#ribbonWind').evaluate(n=>n.closest('section').id),'panelBones');
+ await page.screenshot({path:path.resolve(root,'../../_work/jiggle-wave-bones-20261113/wave-selection.png')});
+ assert.deepEqual(errors,[]);console.log('PASS installed Workshop: part-level wave toggle/direction, no Apply button, whole-chain disable and UI placement');
+}finally{await app.close();}

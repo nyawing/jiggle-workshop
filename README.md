@@ -1,47 +1,36 @@
 # Jiggle Workshop
 
-Desktop accessory rigging and weight-painting editor for Nyawing.
+A Windows editor for Nyawing accessories with flexible details: capes, tails, ribbons and hanging ornaments.
 
-## Run from source
+## Get started
 
-Requires Node.js/npm and Python 3 on PATH.
+Download the Windows x64 ZIP from Releases, extract the entire folder and run **Jiggle Workshop.exe**. Keep the resources folder beside the executable. No separate Python or Node installation is required.
 
-```sh
-npm ci
-python -m pip install -r backend/requirements.txt
-npm run build
-npm start
-```
+1. Open an accessory RBXM/RBXMX, a saved .jiggle.json project, or load an accessory by its catalog ID.
+2. Select the flexible surface and create a chain with a start and endpoint. Add bend points where needed.
+3. Paint weights or use a gradient. Zero weight keeps a surface rigid; stronger weights make it follow the chain.
+4. Preview the accessory in motion or try it on the character with walking and jumping.
+5. To animate a particular chain, select its part in Bones and enable its wind wave, then choose a direction.
+6. Save the editable project. Export the mesh and accessory ZIP when ready; upload the mesh and supply its asset ID in the export dialog.
 
-For binary RBXM import/export, install rbxmk and place `rbxmk.exe` in `backend/`.
-The binary is not included. Importing by catalog ID uses Nyawing's public service
-and requires network access. Local editing does not require a Nyawing login.
+Imported accessory scripts are not executed. Keep the original file if you need custom scripts. Unavailable meshes can be selected manually. The editor does not publish accessories automatically.
 
-The SmartBone solver and its MIT notice are included under `vendor/` and `licenses/`.
-Third-party dependencies retain their respective licenses. No additional license
-grant is asserted for project-authored code.
+## Version 0.5.4
 
-## Editing
+- Synchronized simulation and improved boundary contact reduce shaking across frame rates.
+- Smooth cloth bending and wave directions for individual chains.
+- Character fitting preview with walking, jumping and shift-lock controls.
+- Protection against accidentally closing an edited project.
+- Updated documentation and a cleaned distribution.
 
-Create a chain along the flexible part, assign weights, then review its movement.
-Keep the attachment and other rigid surfaces at zero flexible weight.
+## Notes
 
-- Q: select; V: brush; E: erase; Shift while painting: smooth.
-- Ctrl+W: weight gradient; Ctrl+Q: new chain; Ctrl+D: mirror.
-- G: place the selected control point; Space: simulation; Ctrl+Z: undo.
+The preview uses a trusted SmartBone solver through a compatibility adapter, rather than the full Roblox engine. Check the exported item in game before publishing. Imported legacy projects retain their saved settings. Existing skinned meshes can have import/export restrictions; keep source backups.
 
-Save the project to continue editing later. Export creates the accessory package.
-The original accessory geometry is preserved.
+## Development
 
-## Physics preview
+Install dependencies with `npm ci`, build with `npm run build`, run unit tests with `npm test`, and launch with `npm start`. Backend tests are in `tests/test_asset_io.py`.
 
-SmartBone runs inside a Luau WASM sandbox with a Roblox compatibility adapter.
-Accessory-supplied scripts are not executed. Its sources are in `vendor/smartbone`;
-the original license is in `licenses/SmartBone-LICENSE.txt`.
+## Licenses
 
-## Checks
-
-```sh
-npm test
-npm run build
-```
+Third-party notices are included in `licenses`. Original SmartBone and other vendor notices are retained.

@@ -28,4 +28,6 @@ input[type=checkbox]{width:auto;margin:0; padding:0;flex:none}label.toggle{displ
 
 .weight-settings{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px 12px}.weight-settings label{margin:4px 0}.weight-tools{grid-template-columns:repeat(3,minmax(0,1fr))}.weight-tools button{padding:7px 2px;font-size:11px}#weightActions{margin-top:8px}#panelWeights label.toggle{margin:9px 0}@media(max-width:1000px){header{flex-wrap:nowrap}header strong{flex:none}#remote{flex:1;min-width:0}.file-actions{width:auto;flex:none}#remote input{min-width:0}}
 
-#brushCursor{z-index:6;will-change:left,top;border:1px solid #d9e2e9;box-shadow:0 0 0 1px #1118;opacity:1}#brushCursor.inactive{opacity:1;border-style:dashed;border-color:#aab3bc!important}header{flex-wrap:nowrap;min-width:0}header>*{min-width:0}#remote{min-width:0}#remote input{outline-offset:-2px}#mcpSettings{flex:none}
+#brushCursor{z-index:6;will-change:left,top;border:1px solid #d9e2e9;box-shadow:0 0 0 1px #1118;opacity:1}#brushCursor.inactive{opacity:1;border-style:dashed;border-color:#aab3bc!important}header{flex-wrap:nowrap;min-width:0}header>*{min-width:0}#remote{min-width:0}#remote input{outline-offset:-2px}
+
+.bone-wave-settings{border-top:1px solid #444;margin-top:14px;padding-top:10px}.bone-wave-settings>label{display:block;margin:10px 0}.bone-wave-settings>label.toggle{display:flex;align-items:center;gap:9px}.bone-wave-settings button{width:100%;margin:8px 0 12px}label.toggle{min-height:24px;gap:9px}label.toggle input{margin-right:0}

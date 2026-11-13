@@ -27,6 +27,7 @@ CATALOG_ALIAS_BASE = 2100000000
 MAX_CATALOG_ID = 2147483647 - CATALOG_ALIAS_BASE
 CATEGORY_IDS={'hat':8,'hair':41,'face_accessory':42,'neck':43,'shoulder':44,'front':45,'back':46,'waist':47}
 BRIDGE_URL='https://www.nyawing.com/api/v1/jiggle-bridge/index.php'
+DOWNLOAD_USER_AGENT='NyawingWorkshop/0.5.2'
 
 
 class BridgeDownloadError(ValueError):
@@ -39,7 +40,7 @@ class AnonymousBridge:
     def call(self,action,payload=None,job=None,binary=False):
         class NoRedirect(urllib.request.HTTPRedirectHandler):
             def redirect_request(self,*args):return None
-        headers={'Content-Type':'application/json'}
+        headers={'Content-Type':'application/json','User-Agent':DOWNLOAD_USER_AGENT}
         if self.group:headers['Authorization']='Import '+self.group['importId']+':'+self.group['token']
         request=urllib.request.Request(BRIDGE_URL+'?action=anon_'+action+('&jobId='+job if job else ''),data=json.dumps(payload).encode() if payload is not None else None,headers=headers)
         try:
@@ -202,7 +203,8 @@ def fetch_asset(uri, folder):
         def redirect_request(self,*args): return None
     opener=urllib.request.build_opener(NoRedirect())
     url='https://assetdelivery.nyawing.com/v1/asset?id='+number
-    with opener.open(url,timeout=10) as response:
+    request=urllib.request.Request(url,headers={'User-Agent':DOWNLOAD_USER_AGENT})
+    with opener.open(request,timeout=10) as response:
         data=response.read(LIMIT+1)
     if len(data)>LIMIT: raise ValueError('Ассет слишком большой.')
     return data
@@ -238,7 +240,8 @@ def product_type(asset_id):
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self,*args):return None
     try:
-        with urllib.request.build_opener(NoRedirect()).open('https://www.nyawing.com/marketplace/productinfo?assetId='+asset_id,timeout=5) as response:
+        request=urllib.request.Request('https://www.nyawing.com/marketplace/productinfo?assetId='+asset_id,headers={'User-Agent':DOWNLOAD_USER_AGENT})
+        with urllib.request.build_opener(NoRedirect()).open(request,timeout=5) as response:
             raw=response.read(16001)
         if len(raw)>16000:return None
         kind=json.loads(raw).get('AssetTypeId')
@@ -393,6 +396,17 @@ def import_asset(path,fetcher=None):
             'sourceHash':hashlib.sha256(bounded_file(path)).hexdigest(),'warnings':[],
             'itemType':'hair' if value(accessory,'AccessoryType')=='2' or any(i.get('class')=='Attachment' and value(i,'Name')=='HairAttachment' for i in accessory.iter('Item')) else 'accessory'}
     result['appearance']={'doubleSided':value(handle,'DoubleSided','false')=='true'}
+    # Keep attachment-local frames for fitting; do not bake avatar offsets into
+    # the geometry or change the attachment exported with the accessory.
+    result['attachments']=[]
+    for child in handle.findall('Item'):
+        if child.get('class')!='Attachment': continue
+        frame=prop(child,'CFrame')
+        if frame is None: continue
+        try:
+            values=[float(frame.findtext(n,'0' if n[0]!='R' or n[1]!=n[2] else '1')) for n in ('X','Y','Z','R00','R01','R02','R10','R11','R12','R20','R21','R22')]
+            if all(math.isfinite(n) and abs(n)<10000 for n in values): result['attachments'].append({'name':value(child,'Name'),'frame':values})
+        except (ValueError,TypeError): pass
     result.update(accessory_category(accessory))
     result['itemType']='hair' if result['catalogType']=='hair' else 'accessory'
     try:
@@ -526,18 +540,65 @@ def frame(item,position,rotation=None):
     for key,num in zip(('X','Y','Z','R00','R01','R02','R10','R11','R12','R20','R21','R22'),[*position,*(rotation or [1,0,0,0,1,0,0,0,1])]): ET.SubElement(p,key).text=str(num)
 
 
+def validate_constraints(settings):
+    value=settings.get('rotationLimit',180)
+    if isinstance(value,bool) or not isinstance(value,(int,float)) or not math.isfinite(value) or not 0<=value<=180:
+        raise ValueError('Некорректное ограничение изгиба.')
+    return value
+
+
+def validate_motion_settings(settings):
+    if settings.get('motionMode','standard') not in ('standard','cape'):raise ValueError('Неизвестный режим движения.')
+    if settings.get('ribbonDirection','mixed') not in ('mixed','horizontal','vertical','depth'):raise ValueError('Неизвестное направление волны.')
+    for flag in ('ribbonWind','useGravity'):
+        if flag in settings and not isinstance(settings[flag],bool):raise ValueError('Некорректный переключатель: '+flag)
+    solver=settings.get('solver','legacy')
+    if solver not in ('legacy','v1-sync','v2-sync'): raise ValueError('Неизвестный вариант физики.')
+    defaults={'inertia':0,'elasticity':.5,'windInfluence':0,'windStrength':1,'windSpeed':8,'windAngle':0}
+    bounds={'inertia':(0,1),'elasticity':(0,1),'windInfluence':(0,1),'windStrength':(0,10),'windSpeed':(0,30),'windAngle':(-180,180)}
+    if solver=='v2-sync': bounds['elasticity']=(0,12)
+    out={}
+    for name,default in defaults.items():
+        n=settings.get(name,default);low,high=bounds[name]
+        if isinstance(n,bool) or not isinstance(n,(int,float)) or not math.isfinite(n) or not low<=n<=high: raise ValueError('Некорректный параметр физики: '+name)
+        out[name]=float(n)
+    return out
+
+
 def attributes(settings,roots='JiggleRoot'):
+    motion=validate_motion_settings(settings)
     fields={'Roots':roots,'Damping':float(settings['damping']),'Stiffness':float(settings['stiffness']),
-            'WindInfluence':0.0,'Inertia':0.0,'UpdateRate':60.0}
+            'WindInfluence':motion['windInfluence'],'Inertia':motion['inertia'],'Elasticity':motion['elasticity'],
+            'WindStrength':motion['windStrength'],'WindSpeed':motion['windSpeed'],
+            'WindDirection':(math.cos(math.radians(motion['windAngle'])),0,math.sin(math.radians(motion['windAngle']))),'UpdateRate':60.0}
+    rotation_limit=validate_constraints(settings)
+    if settings.get('motionMode')=='cape':fields['SmartBoneMotionMode']='cape'
+    if settings.get('useGravity') is False:fields['SmartBoneUseGravity']=False
+    if settings.get('ribbonWind') is True:
+        fields['SmartBoneWindAnimation']=True
+        fields['SmartBoneWindDirection']=settings.get('ribbonDirection','mixed')
+    if 'ribbonBones' in settings and settings['ribbonBones'] is not None:
+        selected=settings['ribbonBones']
+        if not isinstance(selected,dict) or len(selected)>25:raise ValueError('Некорректный выбор костей волны.')
+        for name,direction in selected.items():
+            if not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{0,40}',name) or direction not in ('mixed','horizontal','vertical','depth'):raise ValueError('Некорректная настройка волны кости.')
+        fields['SmartBoneWindBones']=','.join(name+':'+direction for name,direction in sorted(selected.items()))
+    if rotation_limit<180: fields['RotationLimit']=float(rotation_limit)
     out=bytearray(struct.pack('<I',len(fields)))
     for name,v in fields.items():
         encoded=name.encode();out+=struct.pack('<I',len(encoded))+encoded
         if isinstance(v,str): encoded=v.encode();out+=b'\x02'+struct.pack('<I',len(encoded))+encoded
+        elif isinstance(v,bool):out+=b'\x03'+bytes([int(v)])
+        elif isinstance(v,tuple): out+=b'\x11'+struct.pack('<fff',*v)
         else: out+=b'\x06'+struct.pack('<d',v)
     return base64.b64encode(out).decode()
 
 
 def export_asset(source,path,project):
+    selected=project['settings'].get('ribbonBones')
+    if selected is not None and (not isinstance(selected,dict) or any(name not in {b['name'] for b in project['bones'] if b['parent']>=0} for name in selected)):
+        raise ValueError('Волна ссылается на отсутствующую кость.')
+    if project['settings'].get('solver','legacy')=='v2-sync': raise ValueError('V2 пока доступен для примерки и сохранения проекта. Экспорт станет доступен после обновления игрового runtime.')
     if project.get('sourceHash')!=hashlib.sha256(bounded_file(source)).hexdigest(): raise ValueError('Исходный файл изменился. Загрузите его заново.')
     mesh_bytes=build_skinned(project)
     mesh_id=str(project.get('meshAssetId',''))
@@ -614,6 +675,8 @@ def main():
         if len(project['mask'])!=nv or any(not isinstance(x,(int,float)) or not math.isfinite(x) or not 0<=x<=1 for x in project['mask']): raise ValueError('Некорректное выделение проекта.')
         for name in ('anchor','tip'):
             if len(project[name])!=3 or any(not math.isfinite(x) or abs(x)>10000 for x in project[name]): raise ValueError('Некорректное крепление проекта.')
+        validate_constraints(project['settings'])
+        validate_motion_settings(project['settings'])
         for name in ('damping','stiffness'):
             if not 0<=project['settings'][name]<=1: raise ValueError('Некорректные параметры проекта.')
         texture=project.get('texture')

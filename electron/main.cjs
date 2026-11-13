@@ -34,7 +34,7 @@ async function importFile(file){
       const directory=await fs.mkdtemp(path.join(os.tmpdir(),'jiggle-project-'));
       importedPath=path.join(directory,'original.rbxm');await fs.writeFile(importedPath,raw);
     }
-    return {name:project.name||'Проект',geometry:project.geometry,texture:project.texture,appearance:project.appearance,sourceHash:project.sourceHash,itemType:project.itemType,warnings:[],savedProject:project};
+    return {name:project.name||'Проект',geometry:project.geometry,texture:project.texture,appearance:project.appearance,attachments:project.attachments,catalogType:project.catalogType,sourceHash:project.sourceHash,itemType:project.itemType,warnings:[],savedProject:project};
   }
   const result=await backend('import',{path:file});importedPath=file;return result;
 }
@@ -42,6 +42,18 @@ app.whenReady().then(()=>{
   win=new BrowserWindow({show:process.env.WORKSHOP_TEST!=='1',width:1250,height:830,minWidth:980,minHeight:650,backgroundColor:'#11151f',title:'Jiggle Workshop',webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,backgroundThrottling:false,offscreen:process.env.WORKSHOP_TEST==='1'}});
   win.setMenu(null);win.webContents.setWindowOpenHandler(()=>({action:'deny'}));
   win.webContents.on('will-navigate',event=>event.preventDefault());
+  // Covers the title-bar X, Alt+F4, app.quit and reload without losing edits.
+  win.webContents.on('will-prevent-unload',event=>{
+    const choice=dialog.showMessageBoxSync(win,{
+      type:'warning',title:'Несохранённые изменения',
+      message:'В проекте есть несохранённые изменения.',
+      detail:'Закрыть Workshop и потерять эти изменения?',
+      buttons:['Продолжить редактирование','Закрыть без сохранения'],
+      defaultId:0,cancelId:0,noLink:true,
+    });
+    if(choice===1)event.preventDefault();
+  });
+
   ipcMain.handle('open',async event=>{trusted(event);const result=await dialog.showOpenDialog(win,{filters:[{name:'Аксессуары и проекты',extensions:['rbxm','rbxmx','json']}]});return result.canceled?null:importFile(result.filePaths[0]);});
   ipcMain.handle('import',async(event,file)=>{trusted(event);return importFile(file);});
   ipcMain.handle('import-reference',async(event,reference)=>{

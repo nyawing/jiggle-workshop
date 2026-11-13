@@ -1,0 +1,78 @@
+// Exercise the owned Electron app in an invisible window with a local fixture.
+import {_electron as electron} from 'playwright';
+import assert from 'node:assert/strict';
+import {mkdtemp,writeFile,readFile,mkdir} from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import ts from 'typescript';
+import * as THREE from 'three';
+const root=process.cwd(),dir=await mkdtemp(path.join(os.tmpdir(),'jiggle-fitting-'));
+const source=await readFile(path.join(root,'src/model.ts'),'utf8');
+const js=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText.replace("'three'",JSON.stringify(import.meta.resolve('three')));
+const {createChain,skinForBones}=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
+const plane=new THREE.PlaneGeometry(2,3,8,12);
+const geometry={positions:Array.from(plane.attributes.position.array),normals:Array.from(plane.attributes.normal.array),uv:Array.from(plane.attributes.uv.array),indices:Array.from(plane.index.array),rigged:false};
+const bones=createChain(new THREE.Vector3(0,1.5,0),new THREE.Vector3(0,-1.5,0),4),mask=geometry.positions.filter((_,i)=>i%3===1).map(y=>(1.5-y)/3),skin=skinForBones(geometry,new Float32Array(mask),bones);
+const project={version:1,name:'Cape fitting test',catalogType:'back',appearance:{doubleSided:true},geometry,bones,...skin,mask,anchor:[0,1.5,0],tip:[0,-1.5,0],settings:{stiffness:.4,damping:.3,inertia:.7,elasticity:.65,windInfluence:0},attachments:[{name:'BodyBackAttachment',frame:[0,1.5,0,1,0,0,0,1,0,0,0,1]}]};
+const file=path.join(dir,'cape.jiggle.json');await writeFile(file,JSON.stringify(project));
+const app=await electron.launch({...(process.env.WORKSHOP_EXE?{executablePath:process.env.WORKSHOP_EXE,args:[]}:{args:[root]}),env:{...process.env,WORKSHOP_TEST:'1'}}),errors=[];
+try{
+ const page=await app.firstWindow();page.on('pageerror',e=>errors.push(e.message));
+ await page.waitForSelector('#demo');
+ await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},file);
+ await page.locator('#open').evaluate(n=>n.click());
+ await page.waitForFunction(()=>document.querySelector('#status')?.textContent.startsWith('Проект восстановлен.'));
+ await page.locator('#tabCheck').click();assert.equal(await page.locator('#physicsSolver').inputValue(),'v1-sync','old V1 projects use the updated V1 clock');assert.equal(await page.locator('#physicsSolver').isVisible(),false);await page.locator('#tryOn').check();
+ await page.waitForFunction(()=>window.workshopInspect().running&&window.workshopInspect().fitting.enabled);
+ assert.equal(await page.locator('#fittingSlot').inputValue(),'back');
+ const before=await page.evaluate(()=>window.workshopInspect());
+ const canvas=page.locator('canvas[data-engine]');await canvas.focus();await page.keyboard.down('w');await page.waitForTimeout(400);await page.keyboard.up('w');
+ const moved=await page.evaluate(()=>window.workshopInspect());assert(Math.hypot(moved.fitting.position[0],moved.fitting.position[2])>1);
+ await page.keyboard.press('Space');await page.waitForTimeout(80);
+ const jump=await page.evaluate(()=>window.workshopInspect());assert(jump.fitting.position[1]>0,'Space jumps instead of toggling simulation');assert(jump.running);
+ await page.keyboard.down('Space');await page.waitForTimeout(1100);assert((await page.evaluate(()=>window.workshopInspect())).fitting.keys.includes('Space'));await page.keyboard.up('Space');
+ await page.locator('#fittingShiftLock').click();
+ await page.waitForFunction(()=>window.workshopInspect().fitting.shiftLock);
+ const lockedYaw=await page.evaluate(()=>window.workshopInspect().fitting.yaw);
+ await page.evaluate(()=>document.querySelector('canvas[data-engine]').dispatchEvent(new MouseEvent('mousemove',{bubbles:true,movementX:90,movementY:0})));
+ await page.waitForTimeout(80);assert(Math.abs((await page.evaluate(()=>window.workshopInspect())).fitting.yaw-lockedYaw)>.1);
+ await page.keyboard.press('Shift');await page.waitForFunction(()=>!window.workshopInspect().fitting.shiftLock);
+ assert.equal(await page.locator('#physicsAdvanced').isVisible(),false);assert.equal(await page.locator('#hatTestPreset').count(),0);await page.locator('#softWind').check();assert.equal((await page.evaluate(()=>window.workshopInspect())).project.settings.windInfluence,.15);await page.locator('#softWind').uncheck();assert.equal((await page.evaluate(()=>window.workshopInspect())).project.settings.windInfluence,0);await page.locator('#physicsAdvanced').evaluate(n=>{n.hidden=false;n.open=true;});
+ await page.locator('#inertia').fill('0.85');await page.locator('#elasticity').fill('0.4');await page.locator('#windInfluence').fill('0.6');
+ await page.waitForTimeout(300);
+ const tuned=await page.evaluate(()=>window.workshopInspect());assert(tuned.running);assert.equal(tuned.project.settings.solver,'v1-sync');assert.equal(tuned.project.settings.inertia,.85);assert.equal(tuned.project.settings.windInfluence,.6);
+ assert.deepEqual(tuned.project.geometry,before.project.geometry);assert.deepEqual(tuned.project.skinWeights,before.project.skinWeights);assert.deepEqual(tuned.project.bones,before.project.bones);
+ assert(tuned.worldVertices.flat().every(Number.isFinite));assert(!await page.locator('#status').evaluate(n=>n.classList.contains('error')),await page.locator('#status').textContent());
+ const out=path.resolve(root,'../../_work/smartbone-owner-lab/workshop');await mkdir(out,{recursive:true});await page.screenshot({path:path.join(out,'cape-fitting.png')});
+ await page.locator('#tryOn').uncheck();const end=await page.evaluate(()=>window.workshopInspect());assert(!end.fitting.enabled&&!end.running);assert.deepEqual(end.motion,before.motion);assert.deepEqual(end.cameraTarget,[0,0,0]);
+ await page.locator('#motionMode').selectOption('cape');await page.locator('#useGravity').uncheck();
+ await app.evaluate(({dialog},file)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:file});},path.join(dir,'saved.jiggle.json'));
+ await page.locator('#save').evaluate(n=>n.click());await page.waitForFunction(()=>document.querySelector('#status')?.textContent.startsWith('Проект сохранён:'));
+ const saved=JSON.parse(await readFile(path.join(dir,'saved.jiggle.json'),'utf8'));assert.equal(saved.settings.solver,'v1-sync');assert.equal(saved.settings.inertia,.85);assert.equal(saved.settings.windInfluence,.6);assert.deepEqual(saved.attachments,project.attachments);
+ assert.equal(saved.settings.motionMode,'cape');assert.equal(saved.settings.useGravity,false);
+ await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},path.join(dir,'saved.jiggle.json'));
+ page.once('dialog',dialog=>dialog.accept());await page.locator('#open').evaluate(n=>n.click());
+ await page.waitForFunction(()=>document.querySelector('#status')?.textContent.startsWith('Проект восстановлен.'));
+ await page.locator('#tabCheck').click();assert.equal(await page.locator('#motionMode').inputValue(),'cape');assert.equal(await page.locator('#useGravity').isChecked(),false);
+ assert.equal(await page.locator('#ribbonDemo').count(),0);
+ await page.locator('#ribbonWind').check();await page.locator('#simulate').click();
+ await page.waitForFunction(()=>window.workshopInspect().running&&document.querySelector('#ribbonWind').checked);
+ await page.waitForTimeout(300);
+ const ribbonBefore=await page.evaluate(()=>window.workshopInspect());
+ await page.waitForTimeout(650);
+ const ribbonAfter=await page.evaluate(()=>window.workshopInspect());
+ assert(ribbonAfter.worldVertices.flat().every(Number.isFinite));
+ assert.notDeepEqual(ribbonAfter.worldVertices,ribbonBefore.worldVertices,'stationary ribbon must move');
+ assert.deepEqual(ribbonAfter.project.geometry,ribbonBefore.project.geometry);
+ assert.equal(ribbonAfter.project.bones.length,before.project.bones.length);
+ for(const direction of ['horizontal','vertical','depth','mixed']){
+  await page.locator('#ribbonDirection').selectOption(direction);
+  await page.waitForTimeout(200);
+  const current=await page.evaluate(()=>window.workshopInspect());
+  assert(current.running);assert(current.worldVertices.flat().every(Number.isFinite));
+  assert.deepEqual(current.project.geometry,ribbonBefore.project.geometry);
+ }
+ await page.screenshot({path:path.join(out,'ribbon-wind.png')});
+ assert.deepEqual(errors,[]);console.log('PASS fitting, keyboard/jump, wind toggle, stationary ribbon, unchanged rig/skin, restore and saved settings');
+}finally{await app.close();}
+

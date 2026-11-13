@@ -1,6 +1,6 @@
 {
   "name": "nyawing-jiggle-workshop",
-  "version": "0.5.1",
+  "version": "0.5.4",
   "private": true,
   "type": "module",
   "main": "electron/main.cjs",
@@ -14,7 +14,6 @@
     "three": "0.186.1"
   },
   "devDependencies": {
-    "@modelcontextprotocol/sdk": "^1.32.2",
     "@playwright/test": "^1.56.0",
     "@types/three": "^0.183.0",
     "electron": "44.7.0",

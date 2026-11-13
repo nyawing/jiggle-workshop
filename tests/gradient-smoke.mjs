@@ -24,5 +24,5 @@ try{
  await page.locator('#clearSelection').click();assert.equal((await inspect()).project.editor.surfaceSelection.length,0);
  await drag();assert((await inspect()).project.mask[0]>.67,'unselected drag scopes to the starting surface');
  await mkdir(path.resolve(root,'../../reports'),{recursive:true});await page.screenshot({path:path.resolve(root,'../../reports/workshop-gradient.png')});assert.deepEqual(errors,[]);
- console.log('PASS gradient scope, whole-width ramp, one undo, Esc cancellation, no MCP UI/bridge, unchanged geometry');
+ console.log('PASS gradient scope, whole-width ramp, one undo, Esc cancellation, no remote control UI, unchanged geometry');
 }finally{await app.close();}

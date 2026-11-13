@@ -24,6 +24,64 @@ def project():
             'settings':{'damping':.18,'stiffness':.4},'meshAssetId':'123456'}
 
 class Tests(unittest.TestCase):
+    def test_cape_gravity_and_wave_export_types_and_validation(self):
+        settings={'damping':.3,'stiffness':.4,'motionMode':'cape','useGravity':False,'ribbonWind':True,'ribbonDirection':'depth'}
+        raw=io.base64.b64decode(io.attributes(settings));offset=4;fields={}
+        for _ in range(struct.unpack_from('<I',raw)[0]):
+            size=struct.unpack_from('<I',raw,offset)[0];offset+=4
+            key=raw[offset:offset+size].decode();offset+=size
+            kind=raw[offset];offset+=1
+            if kind==2:
+                size=struct.unpack_from('<I',raw,offset)[0];offset+=4
+                value=raw[offset:offset+size].decode();offset+=size
+            elif kind==3:value=bool(raw[offset]);offset+=1
+            elif kind==6:value=struct.unpack_from('<d',raw,offset)[0];offset+=8
+            elif kind==17:value=struct.unpack_from('<fff',raw,offset);offset+=12
+            else:self.fail('Unexpected type')
+            fields[key]=value
+        self.assertEqual(offset,len(raw));self.assertEqual(fields['SmartBoneMotionMode'],'cape')
+        self.assertIs(fields['SmartBoneUseGravity'],False);self.assertIs(fields['SmartBoneWindAnimation'],True)
+        self.assertEqual(fields['SmartBoneWindDirection'],'depth')
+        for key,value in [('motionMode','unknown'),('useGravity',0),('ribbonWind','true'),('ribbonDirection','invalid')]:
+            with self.subTest(key=key),self.assertRaises(ValueError):io.validate_motion_settings({key:value})
+    def test_v1_sync_keeps_legacy_export_attributes(self):
+        settings={'damping':.3,'stiffness':.65,'inertia':.7,'elasticity':.65}
+        self.assertEqual(io.attributes(settings),io.attributes(dict(settings,solver='v1-sync')))
+        with tempfile.TemporaryDirectory() as temp:
+            p=project();p['settings']['solver']='v1-sync'
+            p['sourceHash']=io.hashlib.sha256((APP/'tests/fixture.rbxm').read_bytes()).hexdigest()
+            target=Path(temp)/'export.zip'
+            io.export_asset(APP/'tests/fixture.rbxm',target,p)
+            with zipfile.ZipFile(target) as archive:
+                self.assertIn('accessory.rbxm',archive.namelist())
+
+    def test_v2_project_settings_are_preserved_but_not_silently_exported_as_legacy(self):
+        self.assertEqual(io.validate_motion_settings({'solver':'v2-sync','elasticity':6})['elasticity'],6)
+        with self.assertRaises(ValueError):io.validate_motion_settings({'solver':'unknown'})
+        with self.assertRaisesRegex(ValueError,'V2'):
+            io.export_asset('not-read.rbxm','not-written.zip',{'settings':{'solver':'v2-sync'}})
+
+    def test_motion_attributes_keep_live_values_and_legacy_project_defaults(self):
+        import base64
+        settings={'damping':.3,'stiffness':.65,'inertia':.7,'elasticity':.65,'windInfluence':.6,'windStrength':2,'windSpeed':4,'windAngle':90}
+        raw=base64.b64decode(io.attributes(settings));offset=4;fields={}
+        for _ in range(struct.unpack_from('<I',raw)[0]):
+            length=struct.unpack_from('<I',raw,offset)[0];offset+=4
+            name=raw[offset:offset+length].decode();offset+=length
+            kind=raw[offset];offset+=1
+            if kind==2:
+                length=struct.unpack_from('<I',raw,offset)[0];offset+=4;v=raw[offset:offset+length].decode();offset+=length
+            elif kind==6:v=struct.unpack_from('<d',raw,offset)[0];offset+=8
+            elif kind==17:v=struct.unpack_from('<fff',raw,offset);offset+=12
+            else:self.fail('Unexpected attribute type')
+            fields[name]=v
+        self.assertEqual(fields['Inertia'],.7);self.assertEqual(fields['Elasticity'],.65);self.assertEqual(fields['WindInfluence'],.6)
+        self.assertAlmostEqual(fields['WindDirection'][2],1);self.assertAlmostEqual(fields['WindDirection'][0],0)
+        self.assertEqual(offset,len(raw))
+        self.assertEqual(io.validate_motion_settings({})['windInfluence'],0)
+        for name,bad in [('inertia',float('nan')),('elasticity',1.1),('windInfluence',True),('windSpeed',float('inf'))]:
+            with self.subTest(name=name),self.assertRaises(ValueError):io.validate_motion_settings({name:bad})
+
     def test_export_preserves_original_backface_culling(self):
         for double_sided in ('false', 'true'):
             with self.subTest(double_sided=double_sided), tempfile.TemporaryDirectory() as temp:
@@ -352,7 +410,9 @@ class Tests(unittest.TestCase):
             opener=MagicMock();opener.open.return_value=response
             with patch.object(io.urllib.request,'build_opener',return_value=opener):
                 self.assertEqual(io.product_type('2100175567'),expected)
-                self.assertEqual(opener.open.call_args.args[0],'https://www.nyawing.com/marketplace/productinfo?assetId=2100175567')
+            request=opener.open.call_args.args[0]
+            self.assertEqual(request.full_url,'https://www.nyawing.com/marketplace/productinfo?assetId=2100175567')
+            self.assertEqual(request.get_header('User-agent'),io.DOWNLOAD_USER_AGENT)
         with patch.object(io.urllib.request,'build_opener',side_effect=OSError('offline')):
             self.assertIsNone(io.product_type('123'))
 
