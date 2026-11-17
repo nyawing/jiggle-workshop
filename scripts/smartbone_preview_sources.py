@@ -1,7 +1,8 @@
-"""Bundle the existing SmartBone solver, not asset-supplied executable code.
+"""Собрать существующий модуль физики SmartBone, не исполняя код из ассетов.
 
-Original/vendor sources and their comments remain untouched. Only our adapter
-and generated compatibility glue are comment-stripped for client delivery.
+Оригинальные исходники стороннего разработчика и их комментарии не меняются.
+При поставке клиенту комментарии удаляются только из нашего адаптера
+и автоматически созданного кода совместимости.
 """
 from pathlib import Path
 from lua_delivery_source import strip_comments
@@ -23,8 +24,8 @@ def solver_source():
     blocks = []
     for name, path in modules:
         blocks.append('local function load_' + name + '()\n' + (VENDOR/path).read_text(encoding='utf-8') + '\nend')
-    # Dependencies are bundled tables. No require of an accessory/game module at
-    # CoreScript identity; no Actor or cloned LocalScripts in preview models.
+    # Зависимости объединены в таблицы. Модули аксессуаров и игр не загружаются
+    # с правами CoreScript; в моделях предпросмотра нет Actor и копий LocalScript.
     blocks.append('local dependencies, components = {}, {}')
     for name, path in modules:
         target = 'components' if path.startswith('Components/') else 'dependencies'
@@ -34,11 +35,11 @@ def solver_source():
                   'if name == "Components" then return components end\nend}\n'
                   'local function require(module) return module end')
     original = (VENDOR/'SmartBone.lua').read_text(encoding='utf-8')
-    # Start is gameplay discovery/Actor infrastructure, not the solver. Exclude
-    # it from the preview bundle instead of ever launching a second game host.
+    # Start отвечает за обнаружение игровых объектов и инфраструктуру Actor,
+    # а не за расчёт физики. Исключаем его из предпросмотра, чтобы не запускать второй игровой процесс.
     assert original.count('function module.Start()') == 1
     original = original.split('function module.Start()')[0]
-    # CFrame.Rotation is missing in the 0.482 client; the bundled copy derives it.
+    # В клиенте 0.482 нет CFrame.Rotation; поставляемая копия вычисляет вращение самостоятельно.
     compat = [
         ('parentPoint.TransformOffset.Rotation', '__rotOnly(parentPoint.TransformOffset)'),
         ('Utilities.GetRotationBetween(referenceCFrame.UpVector, v1, v0).Rotation',

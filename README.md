@@ -1,42 +1,41 @@
 # Jiggle Workshop
 
-A Windows editor for Nyawing accessories with flexible details: capes, tails, ribbons and hanging ornaments.
+Редактор аксессуаров Nyawing для Windows: плащи, хвосты, ленты и подвесные украшения с подвижными деталями.
 
-## Get started
+## Начало работы
 
-Download the Windows x64 ZIP from Releases, extract the entire folder and run **Jiggle Workshop.exe**. Keep the resources folder beside the executable. No separate Python or Node installation is required.
+Скачайте Windows x64 ZIP из раздела релизов, распакуйте целиком и запустите **Jiggle Workshop.exe**. Папка resources должна оставаться рядом с программой. Отдельно устанавливать Python или Node не требуется.
 
-1. Open an accessory RBXM/RBXMX, a saved .jiggle.json project, or load an accessory by its catalog ID.
-2. Select the flexible surface and create a chain with a start and endpoint. Add bend points where needed.
-3. Paint weights or use a gradient. Zero weight keeps a surface rigid; stronger weights make it follow the chain.
-4. Preview the accessory in motion or try it on the character with walking and jumping.
-5. To animate a particular chain, select its part in Bones and enable its wind wave, then choose a direction.
-6. Save the editable project. Export the mesh and accessory ZIP when ready; upload the mesh and supply its asset ID in the export dialog.
+1. Откройте аксессуар RBXM/RBXMX, сохранённый проект .jiggle.json или загрузите предмет по ID каталога.
+2. Выделите гибкую поверхность, создайте начало и конец цепочки. При необходимости добавьте точки изгиба.
+3. Нанесите веса кистью или градиентом. Нулевой вес сохраняет жёсткость поверхности; больший вес усиливает следование за цепочкой.
+4. Проверьте движение предмета или примерьте его на персонаже с ходьбой и прыжками.
+5. Для волны на отдельной цепочке выберите её часть во вкладке костей, включите волну ветра и задайте направление.
+6. Сохраните проект для дальнейшего редактирования. Для публикации экспортируйте меш и ZIP аксессуара; загрузите меш и укажите его ID в диалоге экспорта.
 
-Imported accessory scripts are not executed. Keep the original file if you need custom scripts. Unavailable meshes can be selected manually. The editor does not publish accessories automatically.
+Скрипты импортируемых аксессуаров не выполняются. Сохраните исходник, если он содержит нужные вам скрипты. Отсутствующий меш можно выбрать вручную. Редактор не публикует предметы автоматически.
 
-## Version 0.5.5
+## Версия 0.5.5 — исправленный выпуск
 
-- Russian parameter explanations and contextual help.
-- Russian comments and docstrings in project-authored sources.
-- Simulation behavior and export formats are unchanged.
+- Переведены оставшиеся пояснения в наших скриптах сборки и обработки исходников.
+- Инструкция и описания выпусков переведены на русский.
+- Сторонние исходники, сведения об авторстве и лицензии сохранены без перевода.
+- Физика и форматы проектов не изменены.
 
-## Version 0.5.4
+## Предыдущие обновления
 
-- Synchronized simulation and improved boundary contact reduce shaking across frame rates.
-- Smooth cloth bending and wave directions for individual chains.
-- Character fitting preview with walking, jumping and shift-lock controls.
-- Protection against accidentally closing an edited project.
-- Updated documentation and a cleaned distribution.
+В этом выпуске также доступны русские пояснения параметров, контекстные подсказки, комментарии и строки документации в нашем коде редактора, импортёра, симуляции и тестов.
 
-## Notes
+В версии 0.5.4 добавлены синхронизация симуляции, исправления устойчивости, плавный изгиб ткани, волны выбранных цепочек, примерка с ходьбой и прыжками, камера за плечом и защита несохранённого проекта при закрытии.
 
-The preview uses a trusted SmartBone solver through a compatibility adapter, rather than the full Roblox engine. Check the exported item in game before publishing. Imported legacy projects retain their saved settings. Existing skinned meshes can have import/export restrictions; keep source backups.
+## Ограничения
 
-## Development
+Предпросмотр использует проверенный модуль SmartBone с адаптером совместимости, а не полный движок Roblox. Перед публикацией проверьте предмет в игре. Старые проекты сохраняют свои настройки. Для ранее взвешенных мешей возможны ограничения импорта и экспорта; сохраняйте исходные файлы.
 
-Install dependencies with `npm ci`, build with `npm run build`, run unit tests with `npm test`, and launch with `npm start`. Backend tests are in `tests/test_asset_io.py`.
+## Разработка
 
-## Licenses
+Установите зависимости командой `npm ci`, соберите приложение через `npm run build`, запустите тесты командой `npm test`, а редактор — через `npm start`. Тесты импортёра находятся в `tests/test_asset_io.py`.
 
-Third-party notices are included in `licenses`. Original SmartBone and other vendor notices are retained.
+## Лицензии
+
+Уведомления сторонних разработчиков находятся в папке `licenses`. Оригинальные уведомления SmartBone и других зависимостей сохранены.

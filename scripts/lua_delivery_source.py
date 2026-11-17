@@ -1,4 +1,4 @@
-"""Remove explanatory Lua comments from delivery copies, never string contents."""
+"""Удалять поясняющие комментарии Lua только из поставляемых копий, не меняя содержимое строк."""
 import re
 
 LONG = re.compile(r'\[(=*)\[')
@@ -24,7 +24,7 @@ def strip_comments(source):
             if comment.startswith('--!') or NOTICE.search(comment):
                 out.append(comment)
             else:
-                # Preserve line numbers and prevent adjacent tokens merging.
+                # Сохраняем номера строк и не допускаем склеивания соседних токенов.
                 out.append(''.join(c if c in '\r\n' else ' ' for c in comment))
         elif source[i] in "\"'`":
             start = i
