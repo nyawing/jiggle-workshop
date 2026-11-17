@@ -97,8 +97,7 @@ class Tests(unittest.TestCase):
 
 
     def test_converter_preserves_typed_shared_binary_fields(self):
-        # SharedString is represented as userdata by rbxmk, not as a Lua string.
-        # It must retain its type and exact bytes, including NUL/non-UTF8 data.
+        # rbxmk представляет SharedString как userdata, а не строку Lua. Тип и точные байты должны сохраняться, включая нулевые и не соответствующие UTF-8 байты.
         raw=b'physics\0mesh\xff\xfe'
         encoded=io.base64.b64encode(raw).decode()
         key=io.base64.b64encode(io.hashlib.md5(raw).digest()).decode()
@@ -339,7 +338,7 @@ class Tests(unittest.TestCase):
         asset=(APP/'tests/fixture.rbxm').read_bytes()
         with patch.object(io,'import_asset',side_effect=lambda source:{'name':'Fixture'}),patch.object(io,'product_type',return_value=None):
             for reference,expected in [('https://nyawing.lol/catalog/175567/item','2100175567'),('https://www.nyawing.lol/catalog/item?itemId=175567','2100175567'),('175567','2100175567'),('https://www.roblox.com/catalog/175567/item','175567'),('rbxassetid://175567','175567'),('https://assetdelivery.nyawing.lol/v1/asset?id=175567','175567'),('https://nyawing.lol/v1/asset/?id=175567','175567'),('9876543210','9876543210')]:
-                if 'roblox.com' in reference:continue  # Direct provider is covered separately.
+                if 'roblox.com' in reference:continue  # Прямой источник проверяется отдельно.
                 with self.subTest(reference=reference),patch.object(io,'fetch_asset',return_value=asset) as fetch:
                     result=io.import_reference(reference);self.assertEqual(result['assetId'],expected);fetch.assert_called_once()
                     self.assertEqual(fetch.call_args.args[0],'rbxassetid://'+expected)

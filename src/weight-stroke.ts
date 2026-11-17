@@ -3,9 +3,7 @@ import type {SurfaceGraph} from './brush';
 export type WeightOperation = 'set' | 'erase' | 'smooth';
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 
-/** Radial coverage: hardness is the full-coverage fraction of radius (0..1).
- * The remaining ring uses smoothstep; the center is always fully covered.
- * A nonpositive radius or nonfinite argument produces no coverage. */
+/** Радиальное покрытие: hardness задаёт долю радиуса с полным покрытием (0..1). На оставшемся кольце используется smoothstep; центр всегда покрыт полностью. Неположительный радиус или неконечный аргумент дают нулевое покрытие. */
 export function falloff(distance: number, radius: number, hardness = 0): number {
   if (![distance, radius, hardness].every(Number.isFinite) || radius <= 0) return 0;
   distance = Math.max(0, distance);
@@ -16,19 +14,7 @@ export function falloff(distance: number, radius: number, hardness = 0): number 
   return 1 - t * t * (3 - 2 * t);
 }
 
-/** One immutable-baseline stroke. Construct a new instance on pointer-down.
- * apply accepts vertex-index coverage in [0,1] and returns absolute weights to
- * write to the live mask. Coverage accumulates by maximum, never by event count.
- * Inputs (weights and owners) are copied; this class never mutates the mask.
- * Other chains are protected. Empty-string owners are free vertices.
- *
- * Seam copies receive the maximum coverage of their welded node. Smooth targets
- * average eligible adjacent graph nodes, counting each node once, from the
- * pointer-down snapshot. No spatial search or cross-component averaging occurs.
- * Each vertex retains its own baseline: equal seam weights remain equal, and
- * protected seam copies remain untouched. Returned maps contain only changed
- * vertices for this call; retain the previously written live values otherwise.
- */
+/** Один мазок с неизменной исходной основой; создавайте экземпляр при нажатии указателя. apply принимает покрытие вершин [0,1] и возвращает абсолютные веса для записи в текущую маску. Покрытие накапливается по максимуму, а не по числу событий. Веса и владельцы копируются; класс не изменяет маску. Другие цепочки защищены, пустой владелец означает свободную вершину. Копии шва получают максимальное покрытие склеенного узла. Сглаживание усредняет допустимых соседей графа по снимку на начало мазка, считая каждый узел один раз; пространственный поиск и усреднение между компонентами не применяются. Каждая вершина сохраняет собственную основу: равные веса швов остаются равными, защищённые копии не меняются. Возвращаются только изменённые этим вызовом вершины; остальные текущие значения следует сохранить. */
 export class WeightStroke {
   private readonly start: Float32Array;
   private readonly owners: string[];
@@ -41,16 +27,16 @@ export class WeightStroke {
     private readonly graph: SurfaceGraph, private readonly operation: WeightOperation,
     target: number, strength: number) {
     if (owners.length !== startWeights.length || graph.nodes.length !== startWeights.length)
-      throw new RangeError('Weights, owners and graph vertices must have equal lengths');
+      throw new RangeError('Количество весов и привязок должно совпадать с количеством вершин.');
     if (!['set', 'erase', 'smooth'].includes(operation)) throw new TypeError('Unknown stroke operation');
-    if (!Number.isFinite(target) || !Number.isFinite(strength)) throw new RangeError('Target and strength must be finite');
+    if (!Number.isFinite(target) || !Number.isFinite(strength)) throw new RangeError('Вес и сила кисти должны быть конечными числами.');
     this.start = startWeights.slice();
     this.owners = owners.slice();
     this.maxima = new Float64Array(startWeights.length);
     this.strength = clamp01(strength);
     this.target = clamp01(target);
     this.smoothTargets = new Float64Array(startWeights.length);
-    // Reduce welded nodes first so duplicate UV vertices cannot bias smoothing.
+    // Сначала объединяем склеенные узлы, чтобы дубли UV-вершин не искажали сглаживание.
     const means = graph.vertices.map(vertices => {
       const eligible = vertices.filter(index => this.editable(index));
       return eligible.length ? eligible.reduce((sum, index) => sum + this.start[index], 0) / eligible.length : NaN;
@@ -89,21 +75,15 @@ export class WeightStroke {
 
 export {WeightStroke as Stroke};
 
-/** Structural point type: THREE.Vector3 can be passed directly. Outputs are
- * independent plain objects, with no dependency on Three or DOM events. */
+/** Структурный тип точки: можно передавать THREE.Vector3 напрямую. Результаты — независимые обычные объекты без зависимости от Three или событий DOM. */
 export interface StrokePoint {x: number; y: number; z: number}
 const distance = (a: StrokePoint, b: StrokePoint) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 function copy(point: StrokePoint): StrokePoint {
-  if (![point.x, point.y, point.z].every(Number.isFinite)) throw new RangeError('Point must be finite');
+  if (![point.x, point.y, point.z].every(Number.isFinite)) throw new RangeError('Координаты точки должны быть конечными числами.');
   return {x: point.x, y: point.y, z: point.z};
 }
 
-/** Uniform arc-length stamps, spacing <= radius * .1. add(point) emits the
- * first point immediately and subsequent stamps on a persistent spacing grid.
- * finalize(optionalLastPoint) emits the exact endpoint once and closes the path.
- * Subdividing the same polyline into more input events does not change stamps.
- * Corners describe the supplied polyline; missing corners cannot be inferred.
- */
+/** Равномерные отпечатки по длине дуги с шагом не больше radius*.1. add(point) сразу выдаёт первую точку, затем использует постоянную сетку шага. finalize(optionalLastPoint) один раз добавляет точный конец и закрывает путь. Дополнительное дробление той же ломаной на события не меняет отпечатки. Углы определяются переданной ломаной; отсутствующие углы восстановить нельзя. */
 export class StrokePathResampler {
   readonly spacing: number;
   private last?: StrokePoint;
@@ -113,13 +93,13 @@ export class StrokePathResampler {
 
   constructor(radius: number, spacing = radius * .1) {
     if (!Number.isFinite(radius) || radius <= 0 || !Number.isFinite(spacing) || spacing <= 0)
-      throw new RangeError('Radius and spacing must be finite and positive');
+      throw new RangeError('Размер кисти и шаг мазка должны быть положительными конечными числами.');
     this.spacing = Math.min(spacing, radius * .1);
     this.remaining = this.spacing;
   }
 
   add(point: StrokePoint): StrokePoint[] {
-    if (this.closed) throw new Error('Stroke path is finalized');
+    if (this.closed) throw new Error('Этот мазок уже завершён.');
     const end = copy(point);
     if (!this.last) {
       this.last = end;
@@ -152,9 +132,7 @@ export class StrokePathResampler {
 
 export {StrokePathResampler as StrokePath};
 
-/** Exact maximum radial coverage along a Euclidean segment (including ends).
- * Useful when stamp approximation is undesirable. Callers must enforce surface
- * component/visibility constraints before using this on a surface graph. */
+/** Точное максимальное радиальное покрытие вдоль евклидова отрезка, включая концы. Полезно, когда приближение отпечатками нежелательно. При работе с графом поверхности вызывающий код должен заранее обеспечить ограничения компонентов и видимости. */
 export function segmentCoverage(point: StrokePoint, start: StrokePoint, end: StrokePoint, radius: number, hardness = 0): number {
   const dx = end.x - start.x, dy = end.y - start.y, dz = end.z - start.z;
   const squared = dx * dx + dy * dy + dz * dz;

@@ -15,6 +15,12 @@ Download the Windows x64 ZIP from Releases, extract the entire folder and run **
 
 Imported accessory scripts are not executed. Keep the original file if you need custom scripts. Unavailable meshes can be selected manually. The editor does not publish accessories automatically.
 
+## Version 0.5.5
+
+- Russian parameter explanations and contextual help.
+- Russian comments and docstrings in project-authored sources.
+- Simulation behavior and export formats are unchanged.
+
 ## Version 0.5.4
 
 - Synchronized simulation and improved boundary contact reduce shaking across frame rates.

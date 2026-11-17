@@ -1,4 +1,4 @@
-"""Bounded accessory import and skinned v4 export. No asset code execution."""
+"""Импорт аксессуаров с ограничениями и экспорт мешей с весами формата v4. Код ассетов не выполняется."""
 import base64
 import copy
 import hashlib
@@ -21,8 +21,7 @@ from pathlib import Path
 APP = Path(sys._MEIPASS) if getattr(sys,'frozen',False) else Path(__file__).resolve().parents[1]
 REPO = APP.parents[1]
 LIMIT = 24 * 1024 * 1024
-# Nyawing catalog row IDs and asset IDs are different namespaces. This matches
-# ELYSIA_ASSET_ALIAS_BASE; the fixed delivery host resolves aliases server-side.
+# ID записей каталога Nyawing и ID ассетов принадлежат разным пространствам имён. Это соответствует ELYSIA_ASSET_ALIAS_BASE; фиксированный сервер выдачи разрешает псевдонимы на своей стороне.
 CATALOG_ALIAS_BASE = 2100000000
 MAX_CATALOG_ID = 2147483647 - CATALOG_ALIAS_BASE
 CATEGORY_IDS={'hat':8,'hair':41,'face_accessory':42,'neck':43,'shoulder':44,'front':45,'back':46,'waist':47}
@@ -79,7 +78,7 @@ ATTACHMENT_TYPES={'HatAttachment':'hat','HairAttachment':'hair','FaceFrontAttach
 
 
 def accessory_category(accessory):
-    """Classification hints, not an authorization or a substitute for server validation."""
+    """Подсказки классификации, а не разрешение доступа и не замена серверной проверки."""
     handle,_=handles(accessory)
     attachments=sorted({value(n,'Name') for n in handle.findall('Item') if n.get('class')=='Attachment'})
     candidates={ATTACHMENT_TYPES[n] for n in attachments if n in ATTACHMENT_TYPES}
@@ -93,7 +92,7 @@ def accessory_category(accessory):
 
 
 def apply_metadata_category(result,category):
-    if category=='accessory':return  # Legacy coarse metadata cannot disambiguate.
+    if category=='accessory':return  # Старых обобщённых метаданных недостаточно для однозначного выбора.
     if category not in CATEGORY_IDS:return
     evidence=result.get('categoryEvidence',{})
     candidates=set(evidence.get('candidates',[]));candidates.add(category)
@@ -171,7 +170,7 @@ def handles(accessory):
 
 
 def fetch_roblox_asset(uri, folder=None):
-    """Public delivery only: no browser profile, cookie jar or stored credentials."""
+    """Только публичная выдача: без профиля браузера, хранилища cookie и сохранённых учётных данных."""
     match=re.search(r'(?:rbxassetid://|[?&]id=)(\d+)',uri or '')
     if not match:raise ValueError('В ссылке ассета отсутствует ID.')
     class PublicRedirect(urllib.request.HTTPRedirectHandler):
@@ -198,7 +197,7 @@ def fetch_asset(uri, folder):
     number=match[1]
     for path in [Path(folder)/(number+'.mesh'), REPO/'Webserver/www/v1/asset/cache'/number]:
         if path.is_file(): return bounded_file(path)
-    # Never follow asset-controlled URLs or redirects to arbitrary hosts.
+    # Не переходить по URL из ассета и перенаправлениям на произвольные серверы.
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self,*args): return None
     opener=urllib.request.build_opener(NoRedirect())
@@ -211,7 +210,7 @@ def fetch_asset(uri, folder):
 
 
 def reference_id(reference):
-    """Extract an ID, never request the user-supplied URL itself."""
+    """Извлечь ID, не выполняя запрос по URL, переданному пользователем."""
     if not isinstance(reference,str) or len(reference)>2048:
         raise ValueError('Вставьте ID предмета или ссылку на его страницу.')
     reference=reference.strip()
@@ -235,8 +234,7 @@ def reference_id(reference):
 
 
 def product_type(asset_id):
-    # Optional public metadata, no session or user-supplied host. A metadata
-    # failure must not turn a successful accessory import into an error.
+    # Необязательные публичные метаданные без сессии и адреса сервера от пользователя. Ошибка метаданных не должна превращать успешный импорт аксессуара в ошибку.
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self,*args):return None
     try:
@@ -276,8 +274,7 @@ def import_reference(reference):
         try:
             raw=fetch_asset('rbxassetid://'+asset_id,temp)
         except urllib.error.HTTPError as error:
-            # Bare IDs also accept original asset IDs when there is no catalog
-            # row. Explicit catalog URLs never fall through to a different item.
+            # Один числовой ID может означать исходный ассет, если записи каталога нет. Явная ссылка каталога не должна переключаться на другой предмет.
             if error.code==404 and bare and catalog:
                 catalog=False;asset_id=number
                 try:raw=fetch_asset('rbxassetid://'+asset_id,temp)
@@ -310,8 +307,7 @@ def parse_mesh(data):
         header,_,nv,nf,nl,nb,names,ns,hq,_=struct.unpack_from('<HHIIHHIHBB',data,13)
         if header not in (24,32): raise ValueError('Неизвестная структура меша v4/v5.')
         start=13+header;stride=40;faces_start=start+nv*stride+(nv*8 if nb else 0);rigged=bool(nb)
-        # Faces from subsequent LODs overlap LOD0; they are alternatives, not
-        # extra geometry. Keep only the highest-detail interval.
+        # Грани последующих LOD перекрывают LOD0: это альтернативы, а не дополнительная геометрия. Оставляем только самый подробный интервал.
         lod_start=faces_start+nf*12
         if nl>=2:
             if nl>128 or lod_start+nl*4>len(data):raise ValueError('Повреждённая таблица LOD.')
@@ -351,9 +347,7 @@ def parse_draco_mesh(data):
             if offset+4>len(payload):raise ValueError('Повреждённые веса v7.')
             rigged=rigged or bool(struct.unpack_from('<I',payload,offset)[0])
         if tag==b'LODS\0\0\0\0':
-            # LODS v1: three metadata bytes, uint32 boundary count, followed
-            # by face offsets. Each interval is an alternative detail level,
-            # not additional geometry; rendering all intervals causes overlap.
+            # LODS v1: три байта метаданных, число границ uint32 и смещения граней. Каждый интервал — альтернативная детализация; отрисовка всех интервалов одновременно создаёт наложение.
             if lod_offsets is not None or version!=1 or len(payload)<7:
                 raise ValueError('Неизвестный или повреждённый блок LOD меша v7.')
             count=struct.unpack_from('<I',payload,3)[0]
@@ -367,8 +361,7 @@ def parse_draco_mesh(data):
     if points.ndim!=2 or points.shape[1]!=3 or not 3<=len(points)<=100000 or faces.ndim!=2 or faces.shape[1]!=3 or not 1<=len(faces)<=150000:raise ValueError('Меш Draco превышает предел сложности.')
     if not np.isfinite(points).all() or (np.abs(points)>1e7).any() or (faces<0).any() or (faces>=len(points)).any():raise ValueError('Некорректная геометрия Draco.')
     if lod_offsets is not None:
-        # Roblox also emits a type-0 [0, 0] sentinel when there are no
-        # alternative LODs. It denotes the whole core mesh, not an empty LOD0.
+        # Если альтернативных LOD нет, Roblox может записывать маркер типа 0 со значением [0,0]. Он обозначает весь основной меш, а не пустой LOD0.
         no_lods=lod_type==0 and lod_offsets==(0,0)
         if not no_lods:
             if (lod_offsets[0]!=0 or lod_offsets[1]<=0 or lod_offsets[-1]!=len(faces) or
@@ -396,8 +389,7 @@ def import_asset(path,fetcher=None):
             'sourceHash':hashlib.sha256(bounded_file(path)).hexdigest(),'warnings':[],
             'itemType':'hair' if value(accessory,'AccessoryType')=='2' or any(i.get('class')=='Attachment' and value(i,'Name')=='HairAttachment' for i in accessory.iter('Item')) else 'accessory'}
     result['appearance']={'doubleSided':value(handle,'DoubleSided','false')=='true'}
-    # Keep attachment-local frames for fitting; do not bake avatar offsets into
-    # the geometry or change the attachment exported with the accessory.
+    # Сохраняем локальные системы координат креплений для примерки; не запекаем смещения аватара в геометрию и не меняем экспортируемое крепление.
     result['attachments']=[]
     for child in handle.findall('Item'):
         if child.get('class')!='Attachment': continue
@@ -454,8 +446,7 @@ def validate_project(project,allow_empty=False):
     if mask is not None and (len(mask)!=nv or any(not isinstance(x,(int,float)) or not math.isfinite(x) or not 0<=x<=1 for x in mask)):
         raise ValueError('Некорректное выделение проекта.')
     bones=project['bones']
-    # A saved editor draft may retain paint after deleting its final bone.
-    # Skinned mesh/RBXM export still requires a real chain and valid skin rows.
+    # Черновик редактора может сохранять покраску после удаления последней кости. Экспорт меша с весами и RBXM всё равно требует настоящую цепочку и корректные строки весов.
     if allow_empty and bones==[]:
         if project['skinIndices']!=[] or project['skinWeights']!=[]:raise ValueError('У проекта без костей не должно быть skin-привязок.')
         owners=project.get('owners')
@@ -516,7 +507,7 @@ def build_skinned(project):
         vertices+=struct.pack('<3f3f2f4b4B',*g['positions'][i*3:i*3+3],*g['normals'][i*3:i*3+3],*g['uv'][i*2:i*2+2],0,0,0,127,255,255,255,255)
         weights=project['skinWeights'][i*4:i*4+4]
         quant=[int(w*255) for w in weights]
-        # Give the rounding remainder to the largest influence, keeping sum 255.
+        # Остаток округления отдаём наибольшему влиянию, сохраняя сумму 255.
         quant[max(range(4),key=lambda k:weights[k])]+=255-sum(quant)
         skin+=bytes(project['skinIndices'][i*4:i*4+4])+bytes(quant)
     for bone in bones:
@@ -603,14 +594,13 @@ def export_asset(source,path,project):
     mesh_bytes=build_skinned(project)
     mesh_id=str(project.get('meshAssetId',''))
     if mesh_id and not re.fullmatch(r'[1-9]\d{0,18}',mesh_id):raise ValueError('Некорректный служебный ID меша.')
-    # Offline packages use a relative binding, not a fabricated/reserved asset ID.
-    # Publication assigns the real IDs and rewrites this one declared reference.
+    # Автономные пакеты используют относительную ссылку, а не выдуманный или зарезервированный ID ассета. Публикация назначает реальные ID и заменяет эту объявленную ссылку.
     mesh_uri='rbxassetid://'+mesh_id if mesh_id else 'rbxasset://jiggle/accessory.mesh'
     for name in ('damping','stiffness'):
         v=project['settings'][name]
         if not isinstance(v,(int,float)) or not math.isfinite(v) or not 0<=v<=1: raise ValueError('Некорректные настройки физики.')
     doc,accessory=read_model(source);handle,old_mesh=handles(accessory)
-    # Keep attachments and accessory identity; turn a rigid Handle into MeshPart.
+    # Сохраняем крепления и свойства аксессуара; преобразуем жёсткий Handle в MeshPart.
     texture=value(old_mesh,'TextureID',value(old_mesh,'TextureId'))
     if old_mesh is not handle: handle.remove(old_mesh)
     handle.set('class','MeshPart')
@@ -621,8 +611,7 @@ def export_asset(source,path,project):
         p=set_prop(handle,'Content',name);ET.SubElement(p,'url').text=mesh_uri if name=='MeshId' else texture
     set_prop(handle,'bool','HasSkinnedMesh','true');set_prop(handle,'token','RenderFidelity','0')
     set_prop(handle,'bool','CanCollide','false');set_prop(handle,'bool','Massless','true')
-    # Preserve backface culling: inverted hulls use it for cartoon outlines.
-    # Forcing double-sided rendering exposes the shell and fills its interior.
+    # Сохраняем отсечение обратных граней: вывернутые оболочки используют его для рисованных контуров. Принудительная двусторонняя отрисовка показывает оболочку и заполняет её внутренность.
     set_prop(handle,'bool','DoubleSided',value(handle,'DoubleSided','false'))
     for name in ('size','InitialSize'):
         p=set_prop(handle,'Vector3',name)
@@ -661,8 +650,7 @@ def export_asset(source,path,project):
 
 
 def main():
-    # Electron sends UTF-8 JSON over stdin. Windows' default text code page
-    # would turn Cyrillic paths into mojibake before pathlib sees them.
+    # Electron передаёт JSON в UTF-8 через stdin. Системная кодировка Windows исказила бы кириллицу в путях ещё до передачи в pathlib.
     command=sys.argv[1];payload=json.loads(sys.stdin.buffer.read().decode('utf-8'))
     if command=='import': result=import_asset(payload['path'])
     elif command=='import-reference': result=import_reference(payload['reference'])

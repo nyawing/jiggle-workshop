@@ -1,4 +1,4 @@
-"""Bundle the project's trusted SmartBone solver with its original attribution."""
+"""Собрать проверенный модуль физики SmartBone проекта, сохранив сведения об авторстве."""
 from pathlib import Path
 import sys
 

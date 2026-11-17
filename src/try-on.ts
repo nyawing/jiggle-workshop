@@ -11,8 +11,7 @@ function interpolate(a:THREE.Matrix4,b:THREE.Matrix4,t:number){
  return new THREE.Matrix4().compose(pa.lerp(pb,t),qa.slerp(qb,t),new THREE.Vector3(1,1,1));
 }
 
-// A deterministic R6-sized fitting rig. Motion moves the entire accessory root,
-// rather than adding cosmetic forces to bones or changing exported mesh data.
+// Детерминированный манекен размеров R6. Движение перемещает весь корень аксессуара, не добавляя декоративных сил костям и не меняя экспортируемый меш.
 export class TryOn {
   readonly rig=new THREE.Group();
   readonly environment=new THREE.Group();
@@ -24,8 +23,7 @@ export class TryOn {
   private pose:Record<string,THREE.Matrix4>={};private blendFrom:Record<string,THREE.Matrix4>={};
   private material=new THREE.MeshStandardMaterial({color:0x8295ac,roughness:.85});
   constructor(scene:THREE.Scene){
-    // Read-only extraction of the installed client's R6 meshes and Motor6D
-    // frames. Render trusted keyframe data; never execute imported avatar code.
+    // Только читаем меши R6 и системы координат Motor6D установленного клиента. Отображаем проверенные ключевые кадры; импортированный код аватара не выполняем.
     for(const [name,data]of Object.entries(stock.meshes)){
       const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(data.positions,3));geometry.setAttribute('normal',new THREE.Float32BufferAttribute(data.normals,3));geometry.setAttribute('uv',new THREE.Float32BufferAttribute(data.uv,2));geometry.setIndex(data.indices);
       const part=new THREE.Group(),mesh=new THREE.Mesh(geometry,this.material);if(name==='Head')mesh.scale.setScalar(1);
@@ -47,7 +45,7 @@ export class TryOn {
     this.moving=direction.lengthSq()>0;
     if(this.moving){direction.normalize();this.position.addScaledVector(direction,dt*16);const goal=Math.atan2(-direction.x,-direction.z),angle=Math.atan2(Math.sin(goal-this.yaw),Math.cos(goal-this.yaw));this.yaw+=THREE.MathUtils.clamp(angle,-dt*10,dt*10);}
     if(this.shiftLock)this.yaw=cameraYaw;
-    // Keep the avatar in the visible test yard without a discontinuous wrap.
+    // Удерживаем аватар в видимой тестовой зоне без скачкообразного переноса между её краями.
     this.position.x=THREE.MathUtils.clamp(this.position.x,-100,100);this.position.z=THREE.MathUtils.clamp(this.position.z,-100,100);
     if(this.keys.has('Space'))this.jump();
     if(this.height>0||this.velocity>0){this.velocity-=196.2*dt;this.height=Math.max(0,this.height+this.velocity*dt);if(this.height===0)this.velocity=0;}

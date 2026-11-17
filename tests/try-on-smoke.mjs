@@ -1,4 +1,4 @@
-// Exercise the owned Electron app in an invisible window with a local fixture.
+// Проверяем собственное приложение Electron в невидимом окне на локальных тестовых данных.
 import {_electron as electron} from 'playwright';
 import assert from 'node:assert/strict';
 import {mkdtemp,writeFile,readFile,mkdir} from 'node:fs/promises';

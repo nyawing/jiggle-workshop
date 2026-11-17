@@ -3,8 +3,7 @@ export type GeometryData={positions:number[];normals:number[];uv:number[];indice
 export type BoneData={name:string;parent:number;position:number[];rotation:number[]};
 export type SkinData={skinIndices:number[];skinWeights:number[]};
 export function copyBones(bones:BoneData[]):BoneData[]{return bones.map(b=>({...b,position:[...b.position],rotation:[...b.rotation]}));}
-// Split an edge without straightening a bent chain or moving its other points.
-// Parent-first insertion also preserves the native export hierarchy ordering.
+// Разделяем ребро, не выпрямляя изогнутую цепочку и не перемещая остальные точки. Вставка после родителя сохраняет порядок экспортируемой иерархии.
 export function insertRestPoint(geometry:GeometryData,bones:BoneData[],child:number,mask:Float32Array,owners:string[],skin:SkinData){
   if(geometry.rigged)throw new Error('Существующий риг доступен только для осмотра.');
   if(!Number.isInteger(child)||child<1||child>=bones.length||bones[child].parent<1)throw new Error('Выберите сегмент цепочки.');
@@ -35,8 +34,7 @@ export function appendChain(bones:BoneData[],start:THREE.Vector3,end:THREE.Vecto
   const offset=bones.length-1;
   return [...copyBones(bones),...fresh.slice(1).map((b,i)=>({...b,name:i===0?`JiggleRoot${suffix}`:`Jiggle${suffix}_${i}`,parent:i===0?0:b.parent+offset}))];
 }
-// Rest positions are mesh-local absolute coordinates. Rebuild the bind pose after
-// editing them, keeping geometry and weights intact. RigidRoot is never editable.
+// Исходные позиции — абсолютные координаты в системе меша. После изменения перестраиваем позу привязки, сохраняя геометрию и веса. RigidRoot не редактируется.
 export function moveRestBone(bones:BoneData[],index:number,position:THREE.Vector3):BoneData[]{
   if(index<1||index>=bones.length)throw new Error('Выберите кость цепочки.');
   if(!position.toArray().every(n=>Number.isFinite(n)&&Math.abs(n)<10000))throw new Error('Некорректные координаты.');
@@ -59,16 +57,14 @@ export function createChain(start:THREE.Vector3,end:THREE.Vector3,segments=1):Bo
   const m=new THREE.Matrix4().makeRotationFromQuaternion(orientation).elements;
   const rotation=[m[0],m[4],m[8],m[1],m[5],m[9],m[2],m[6],m[10]];
   const bones:BoneData[]=[{name:'RigidRoot',parent:-1,position:[0,0,0],rotation:[1,0,0,0,1,0,0,0,1]}];
-  // One editor bone is a segment with a start and end. The stationary skin root
-  // stays internal; SmartBone receives its usual root/tip Bone nodes.
+  // Одна кость редактора — отрезок с началом и концом. Неподвижный корень весов остаётся внутренним; SmartBone получает обычные узлы Bone начала и конца.
   for(let i=0;i<=segments;i++)bones.push({name:i===0?'JiggleRoot':`Jiggle${i}`,parent:i,position:start.clone().lerp(end,i/segments).toArray(),rotation:[...rotation]});
   return bones;
 }
 export function skinForChain(geometry:GeometryData,mask:Float32Array,start:THREE.Vector3,end:THREE.Vector3){
   return skinForBones(geometry,mask,createChain(start,end));
 }
-// Conservative mesh-local proximity binding. Root vertices and distant surfaces
-// stay rigid; nearest chain owns each flexible vertex. Does not edit rest pose.
+// Осторожная привязка по близости в координатах меша. Корневые вершины и удалённые поверхности остаются жёсткими; гибкой вершиной управляет ближайшая цепочка. Исходная поза не меняется.
 export function automaticWeights(geometry:GeometryData,bones:BoneData[],strength=1){
   if(geometry.rigged)throw new Error('Автовеса не заменяют существующий риг.');
   const paths=chainPaths(bones);
@@ -92,7 +88,7 @@ export function automaticWeights(geometry:GeometryData,bones:BoneData[],strength
         const start=chain.points[j],delta=chain.points[j+1].clone().sub(start);
         const t=THREE.MathUtils.clamp(point.clone().sub(start).dot(delta)/delta.lengthSq(),0,1);
         const distance=point.distanceTo(start.clone().addScaledVector(delta,t));
-        // Compare scale-relative distances so short ears do not lose to long tails.
+        // Сравниваем расстояния с учётом масштаба, чтобы короткие уши не проигрывали длинным хвостам.
         const score=distance/radius;
         if(score<1&&score<best){
           best=score;owner=bones[chain.path[0]].name;
@@ -105,7 +101,7 @@ export function automaticWeights(geometry:GeometryData,bones:BoneData[],strength
   }
   return {mask,owners,skin:skinForBones(geometry,mask,bones,undefined,undefined,owners)};
 }
-// Only a brush's touched vertices are recalculated. Rest edits never call this.
+// Пересчитываем только вершины, затронутые кистью. Правки исходной позы эту функцию не вызывают.
 export function skinForBones(geometry:GeometryData,mask:Float32Array,bones:BoneData[],previous?:SkinData,touched?:Set<number>,owners?:string[]):SkinData{
   const ids:number[]=[],weights:number[]=[];
   const paths=chainPaths(bones),roots=new Map(paths.map(p=>[bones[p[0]].name,p]));
@@ -113,7 +109,7 @@ export function skinForBones(geometry:GeometryData,mask:Float32Array,bones:BoneD
     if(previous&&touched&&!touched.has(i)){ids.push(...previous.skinIndices.slice(i*4,i*4+4));weights.push(...previous.skinWeights.slice(i*4,i*4+4));continue;}
     const point=new THREE.Vector3().fromArray(geometry.positions,i*3);
     const m=THREE.MathUtils.clamp(mask[i],0,1);
-    // Zero flexible weight is 100% rigid influence, not a zero-sum skin row.
+    // Нулевой гибкий вес означает полное жёсткое влияние, а не нулевую сумму весов вершины.
     const path=owners?roots.get(owners[i]):undefined;
     if(m===0||(owners&&!path)){ids.push(0,0,0,0);weights.push(1,0,0,0);continue;}
     let lo=1,hi=2,blend=0,best=Infinity;
@@ -148,15 +144,12 @@ export function rebindRest(mesh:THREE.SkinnedMesh,bones:BoneData[]){
     const local=b.parent<0?matrices[i]:matrices[b.parent].clone().invert().multiply(matrices[i]);
     local.decompose(mesh.skeleton.bones[i].position,mesh.skeleton.bones[i].quaternion,mesh.skeleton.bones[i].scale);
   });
-  // Keep bind matrices in mesh coordinates, independent of the editor's body
-  // translation/yaw. Skeleton.pose() assumes a non-Bone parent has identity;
-  // capturing scene-world inverses here would move RigidRoot on reset.
+  // Матрицы привязки храним в координатах меша, независимо от перемещения и поворота body. Skeleton.pose() предполагает единичную матрицу родителя, не являющегося Bone; обратные мировые матрицы здесь сдвинули бы RigidRoot при сбросе.
   mesh.skeleton.boneInverses=matrices.map(m=>m.clone().invert());
   mesh.bind(mesh.skeleton,new THREE.Matrix4());mesh.updateWorldMatrix(true,false);mesh.updateMatrixWorld(true);mesh.skeleton.update();
 }
 
-// Remove one flexible node, retaining the absolute rest frames of survivors.
-// Only indices need remapping: weights and the painted mask stay unchanged.
+// Удаляем один гибкий узел, сохраняя абсолютные исходные системы координат остальных. Переназначаются только индексы; веса и нарисованная маска не меняются.
 export function deleteRestBone(bones:BoneData[],index:number,skin:SkinData):{bones:BoneData[];skin:SkinData|null}{
   if(index<1||index>=bones.length)throw new Error('Выберите кость для удаления.');
   const path=chainPaths(bones).find(p=>p.includes(index))!;
@@ -177,8 +170,7 @@ export function deleteRestBone(bones:BoneData[],index:number,skin:SkinData):{bon
   return {bones:next,skin:rows};
 }
 
-// Reflect a complete chain around a mesh-local symmetry plane. Conjugate
-// handedness with a local X reflection so exported rotations remain proper.
+// Отражаем всю цепочку относительно плоскости симметрии в координатах меша. Согласуем ориентацию локальным отражением X, чтобы экспортируемые матрицы оставались правильными вращениями.
 export function mirrorChain(bones:BoneData[],selected:number,axis:0|1|2,plane:number){
   const path=chainPaths(bones).find(p=>p.includes(selected));
   if(!path)throw new Error('Выберите цепочку.');

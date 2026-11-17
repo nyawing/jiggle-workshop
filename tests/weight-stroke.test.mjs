@@ -73,7 +73,7 @@ test('uniform path stamps and exact endpoint are independent of collinear input 
     for(let i=0;i<=count;i++) stamps.push(...path.add(point(1.237*i/count)));
     stamps.push(...path.finalize());
     assert.deepEqual(path.finalize(),[]);
-    assert.throws(()=>path.add(point(2)),/finalized/);
+    assert.throws(()=>path.add(point(2)),/уже завершён/);
     return stamps;
   };
   const sparse=run(1), dense=run(1000);

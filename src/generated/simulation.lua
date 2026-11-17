@@ -1,5 +1,4 @@
-                                                                         
-                                                                                 
+                                                                                                                                                                            
 local vectorMethods, vectorMeta = {}, {}
 local function vec(x,y,z) return setmetatable({X=x or 0,Y=y or 0,Z=z or 0},vectorMeta) end
 vectorMeta.__index=function(v,key)
@@ -21,8 +20,7 @@ local Vector3={new=vec}
 local identity={1,0,0,0,1,0,0,0,1}
 local cfMethods,cfMeta={},{}
 local function cf(position,matrix) return setmetatable({p=position or vec(),r=matrix or identity},cfMeta) end
-                                                                          
-                                                                            
+                                                                                                                                    
 cfMeta.__sub=function(c,v) return cf(c.p-v,c.r) end
 local function rotate(r,v) return vec(r[1]*v.X+r[2]*v.Y+r[3]*v.Z,r[4]*v.X+r[5]*v.Y+r[6]*v.Z,r[7]*v.X+r[8]*v.Y+r[9]*v.Z) end
 cfMeta.__index=function(c,key)
@@ -2747,12 +2745,13 @@ local empty=setmetatable({}, {__index=function()return function()end end})
 node("")
 node("Components/Bone")
 node("Components/BoneTree")
-node("Dependencies/Config")
-node("Dependencies/DefaultObjectSettings")
-node("Dependencies/Frustum")
-node("Dependencies/Utilities")
 node("Components/Collision/Collider")
 node("Components/Collision/ColliderObject")
+node("Components/Collision/Colliders/Box")
+node("Components/Collision/Colliders/Capsule")
+node("Components/Collision/Colliders/Cylinder")
+node("Components/Collision/Colliders/Sphere")
+node("Components/Collision/Colliders/Triangle")
 node("Components/Constraints/AxisConstraint")
 node("Components/Constraints/CollisionConstraint")
 node("Components/Constraints/DistanceConstraint")
@@ -2760,11 +2759,10 @@ node("Components/Constraints/FrictionConstraint")
 node("Components/Constraints/RopeConstraint")
 node("Components/Constraints/RotationConstraint")
 node("Components/Constraints/SpringConstraint")
-node("Components/Collision/Colliders/Box")
-node("Components/Collision/Colliders/Capsule")
-node("Components/Collision/Colliders/Cylinder")
-node("Components/Collision/Colliders/Sphere")
-node("Components/Collision/Colliders/Triangle")
+node("Dependencies/Config")
+node("Dependencies/DefaultObjectSettings")
+node("Dependencies/Frustum")
+node("Dependencies/Utilities")
 loaders[node("Dependencies/Debug/Gizmo")] = function() return empty end
 loaders[node("Dependencies/Debug/ImOverlay")] = function() return empty end
 loaders[node("Dependencies/Runtime")] = function() return empty end
@@ -4842,6 +4840,1131 @@ end
 return Class
 
 end
+loaders[node("Components/Collision/Collider")] = function(script, require)
+--!nocheck
+
+local HttpService = game:GetService("HttpService")
+
+local Dependencies = script.Parent.Parent.Parent:WaitForChild("Dependencies")
+local CollisionSolvers = script.Parent:WaitForChild("Colliders")
+local BoxSolver = require(CollisionSolvers:WaitForChild("Box"))
+local CapsuleSolver = require(CollisionSolvers:WaitForChild("Capsule"))
+local CylinderSolver = require(CollisionSolvers:WaitForChild("Cylinder"))
+local SphereSolver = require(CollisionSolvers:WaitForChild("Sphere"))
+
+local Utilities = require(script.Parent.Parent.Parent:WaitForChild("Dependencies"):WaitForChild("Utilities"))
+
+local SB_VERBOSE_LOG = Utilities.SB_VERBOSE_LOG
+
+local Radians = 0.017453
+local Gizmo = require(Dependencies:WaitForChild("Debug"):WaitForChild("Gizmo"))
+
+--- @class Collider
+--- Internal class for colliders
+--- : Caution:
+--- Changes to the syntax in this class will not count to the major version in semver.
+--- :::
+
+--- @within Collider
+--- @prop Type string
+
+--- @within Collider
+--- @prop Scale Vector3
+
+--- @within Collider
+--- @prop Offset Vector3
+
+--- @within Collider
+--- @prop Rotation Vector3
+
+--- @within Collider
+--- @prop PreviousScale Vector3
+
+--- @within Collider
+--- @prop PreviousOffset Vector3
+
+--- @within Collider
+--- @prop PreviousRotation Vector3
+
+--- @within Collider
+--- @private
+--- @readonly
+--- @prop m_Object BasePart
+
+--- @within Collider
+--- @prop InNarrowphase boolean
+
+--- @within Collider
+--- @prop ObjectConnection RBXScriptConnection
+
+--- @within Collider
+--- @prop Transform CFrame
+
+--- @within Collider
+--- @prop Size Vector3
+
+--- @within Collider
+--- @prop GUID string
+
+local Class = {}
+Class.__index = Class
+
+--- @within Collider
+function Class.new()
+	local self = setmetatable({
+		Type = "Box",
+		Scale = Vector3.new(0, 0, 0),
+		Offset = Vector3.new(0, 0, 0),
+		Rotation = Vector3.new(0, 0, 0),
+		Radius = 0,
+
+		PreviousScale = Vector3.new(0, 0, 0),
+		PreviousOffset = Vector3.new(0, 0, 0),
+		PreviousRotation = Vector3.new(0, 0, 0),
+		PreviousObjectPosition = Vector3.new(0, 0, 0),
+		PreviousObjectRotation = Vector3.new(0, 0, 0),
+
+		m_Object = nil,
+
+		InNarrowphase = false,
+
+		Transform = CFrame.new(),
+		Size = Vector3.new(0, 0, 0),
+
+		GUID = HttpService:GenerateGUID(false),
+	}, Class)
+
+	return self
+end
+
+--- @within Collider
+--- @param Object BasePart
+function Class:SetObject(Object: BasePart)
+	self.m_Object = Object
+
+	self:UpdateTransform()
+end
+
+--- @within Collider
+function Class:UpdateTransform()
+	debug.profilebegin("Update Transform")
+	local Object = self.m_Object
+	local ObjectCFrame = Object.CFrame
+	local ObjectSize = Object.Size
+
+	local Scale = self.Scale
+	local Offset = self.Offset
+	local Rotation = self.Rotation
+
+	local ScaledOffset = ObjectSize * Offset
+	local ScaledSize = ObjectSize * Scale
+
+	local RotationCFrame = CFrame.Angles(Rotation.X * Radians, Rotation.Y * Radians, Rotation.Z * Radians)
+
+	self.Transform = ObjectCFrame * CFrame.new(ScaledOffset) * RotationCFrame
+	self.Size = ScaledSize
+	self.Radius = math.sqrt((math.max(ScaledSize.X, ScaledSize.Y, ScaledSize.Z) * 0.5) ^ 2 * 2)
+	debug.profileend()
+end
+
+--- @within Collider
+--- @param Point Vector3
+--- @param Radius number
+--- @return Vector3 | nil -- Returns nil if specified collider shape is invalid
+function Class:GetClosestPoint(Point, Radius)
+	if self.m_Object == nil then
+		return
+	end
+
+	self.InNarrowphase = false
+
+	-- Broadphase influence detection
+	local PointDistance = (Point - self.Transform.Position).Magnitude - Radius
+
+	if PointDistance > self.Radius then
+		return
+	end
+
+	debug.profilebegin("Narrowphase")
+
+	self.InNarrowphase = true
+
+	local Type = self.Type
+
+	-- Determine which collision solver we should send this off to
+	local IsInside, ClosestPoint, Normal
+
+	if Type == "Box" then
+		IsInside, ClosestPoint, Normal = BoxSolver(self.Transform, self.Size, Point, Radius)
+	end
+
+	if Type == "Capsule" then
+		IsInside, ClosestPoint, Normal = CapsuleSolver(self.Transform, self.Size, Point, Radius)
+	end
+
+	if Type == "Sphere" then
+		IsInside, ClosestPoint, Normal = SphereSolver(self.Transform, self.Size, Point, Radius)
+	end
+
+	if Type == "Cylinder" then
+		IsInside, ClosestPoint, Normal = CylinderSolver(self.Transform, self.Size, Point, Radius)
+	end
+
+	debug.profileend()
+
+	return IsInside, ClosestPoint, Normal
+end
+
+--- @within Collider
+function Class:Step()
+	debug.profilebegin("Collider")
+	self:UpdateTransform()
+	debug.profileend()
+end
+
+--- @within Collider
+--- @param ColliderObject ColliderObject
+--- @param FILL_COLLIDER boolean
+--- @param SHOW_INFLUENCE boolean
+--- @param SHOW_AWAKE boolean
+--- @param SHOW_BROADPHASE boolean
+function Class:DrawDebug(ColliderObject, FILL_COLLIDER, SHOW_INFLUENCE, SHOW_AWAKE, SHOW_BROADPHASE)
+	local COLLIDER_COLOR = Color3.new(0.509803, 0.933333, 0.427450)
+	local FILL_COLOR = Color3.new(0.901960, 0.784313, 0.513725)
+	local SLEEP_COLOR = Color3.new(1, 0, 1)
+	local BROADPHASE_COLOR = Color3.new(0, 1, 1)
+	local INFLUENCE_COLOR = Color3.new(1, 0.3, 0.3)
+
+	local Type = self.Type
+	local Transform = self.Transform
+	local Size = self.Size
+
+	if not ColliderObject.m_Awake and SHOW_AWAKE then
+		COLLIDER_COLOR = SLEEP_COLOR
+	end
+
+	if self.InNarrowphase == false and SHOW_BROADPHASE then
+		FILL_COLOR = BROADPHASE_COLOR
+	end
+
+	if SHOW_INFLUENCE then
+		Gizmo.SetStyle(INFLUENCE_COLOR, 0, false)
+		Gizmo.Sphere:Draw(Transform, self.Radius, 25, 360)
+	end
+
+	if Type == "Box" then
+		Gizmo.SetStyle(COLLIDER_COLOR, 0, false)
+		Gizmo.Box:Draw(Transform, Size)
+
+		if FILL_COLLIDER then
+			Gizmo.SetStyle(FILL_COLOR, 0.75, false)
+			Gizmo.VolumeBox:Draw(Transform, Size)
+			Gizmo.PushProperty("Transparency", 0)
+		end
+
+		return
+	end
+
+	if Type == "Capsule" then
+		local CapsuleRadius = (Size.Y < Size.Z and Size.Y or Size.Z) * 0.5
+		local CapsuleLength = Size.X
+
+		local TransformedTransform = Transform * CFrame.Angles(math.rad(90), -math.rad(90), 0)
+
+		Gizmo.SetStyle(COLLIDER_COLOR, 0, false)
+		Gizmo.Capsule:Draw(TransformedTransform, CapsuleRadius, CapsuleLength, 15)
+
+		if FILL_COLLIDER then
+			local Top = TransformedTransform.Position + TransformedTransform.UpVector * (CapsuleLength * 0.5)
+			local Bottom = TransformedTransform.Position - TransformedTransform.UpVector * (CapsuleLength * 0.5)
+
+			Gizmo.SetStyle(FILL_COLOR, 0.75, false)
+			Gizmo.VolumeCylinder:Draw(Transform, CapsuleRadius, CapsuleLength)
+			Gizmo.VolumeSphere:Draw(CFrame.new(Top), CapsuleRadius)
+			Gizmo.VolumeSphere:Draw(CFrame.new(Bottom), CapsuleRadius)
+			Gizmo.PushProperty("Transparency", 0)
+		end
+
+		return
+	end
+
+	if Type == "Sphere" then
+		local Radius = math.min(Size.X, Size.Y, Size.Z) * 0.5
+
+		Gizmo.SetStyle(COLLIDER_COLOR, 0, false)
+		Gizmo.Sphere:Draw(Transform, Radius, 15, 360)
+
+		if FILL_COLLIDER then
+			Gizmo.SetStyle(FILL_COLOR, 0.75, false)
+			Gizmo.VolumeSphere:Draw(Transform, Radius)
+			Gizmo.PushProperty("Transparency", 0)
+		end
+
+		return
+	end
+
+	if Type == "Cylinder" then
+		local Radius = (Size.Y < Size.Z and Size.Y or Size.Z) * 0.5
+
+		Gizmo.SetStyle(COLLIDER_COLOR, 0, false)
+		Gizmo.Cylinder:Draw(Transform * CFrame.Angles(0, 0, math.rad(90)), Radius, Size.X, 15)
+
+		if FILL_COLLIDER then
+			Gizmo.SetStyle(FILL_COLOR, 0.75, false)
+			Gizmo.VolumeCylinder:Draw(Transform * CFrame.Angles(0, -math.rad(90), 0), Radius, Size.X, 0, 360)
+			Gizmo.PushProperty("Transparency", 0)
+		end
+
+		return
+	end
+end
+
+--- @within Collider
+function Class:Destroy()
+	SB_VERBOSE_LOG("Collider destroying, object: " .. tostring(self.m_Object))
+
+	setmetatable(self, nil)
+end
+
+return Class
+
+end
+loaders[node("Components/Collision/ColliderObject")] = function(script, require)
+local ColliderClass = require(script.Parent:WaitForChild("Collider"))
+local Utilities = require(script.Parent.Parent.Parent:WaitForChild("Dependencies"):WaitForChild("Utilities"))
+
+local SB_VERBOSE_LOG = Utilities.SB_VERBOSE_LOG
+local SleepCycleInterval = 1 / 5
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+--- @class ColliderObject
+--- Internal class for collider
+--- : Caution:
+--- Changes to the syntax in this class will not count to the major version in semver.
+--- :::
+
+--- @within ColliderObject
+--- @private
+--- @readonly
+--- @prop m_Object BasePart
+
+--- @within ColliderObject
+--- @readonly
+--- @prop Destroyed boolean
+
+--- @within ColliderObject
+--- @readonly
+--- @prop Colliders {}
+
+local Class = {}
+Class.__index = Class
+
+--- @within ColliderObject
+--- @param ColliderTable {[number]: {Type: string, ScaleX: number, ScaleY: number, ScaleZ: number, OffsetX: number, OffsetY: number, OffsetZ: number, RotationX: number, RotationY: number, RotationZ: number}}
+--- @param Object BasePart
+--- @return ColliderObject
+function Class.new(ColliderTable: IColliderTable, Object: BasePart): IColliderObject
+	local self = setmetatable({
+		m_Object = Object,
+		m_Awake = true,
+		m_LastSleepCycle = 0,
+		Destroyed = false,
+		Colliders = {},
+	}, Class)
+
+	self:m_LoadColliderTable(ColliderTable)
+
+	self.DestroyConnection = Object:GetPropertyChangedSignal("Parent"):Connect(function()
+		if Object.Parent == nil then
+			self.Destroyed = true
+		end
+	end)
+
+	return self
+end
+
+--- @within ColliderObject
+--- @private
+--- @param Collider {Type: string, ScaleX: number, ScaleY: number, ScaleZ: number, OffsetX: number, OffsetY: number, OffsetZ: number, RotationX: number, RotationY: number, RotationZ: number}
+function Class:m_LoadCollider(Collider: IRawCollider)
+	local FormattedScale = Vector3.new(Collider.ScaleX, Collider.ScaleY, Collider.ScaleZ)
+	local FormattedOffset = Vector3.new(Collider.OffsetX, Collider.OffsetY, Collider.OffsetZ)
+	local FormattedRotation = Vector3.new(Collider.RotationX, Collider.RotationY, Collider.RotationZ)
+
+	local ColliderSolver = ColliderClass.new()
+	ColliderSolver.Scale = FormattedScale
+	ColliderSolver.Offset = FormattedOffset
+	ColliderSolver.Rotation = FormattedRotation
+	ColliderSolver.Type = Collider.Type
+	ColliderSolver:SetObject(self.m_Object)
+
+	table.insert(self.Colliders, ColliderSolver)
+end
+
+--- @within ColliderObject
+--- @private
+--- @param ColliderTable {[number]: {Type: string, ScaleX: number, ScaleY: number, ScaleZ: number, OffsetX: number, OffsetY: number, OffsetZ: number, RotationX: number, RotationY: number, RotationZ: number}}
+function Class:m_LoadColliderTable(ColliderTable: IColliderTable)
+	for _, Collider in pairs(ColliderTable) do
+		self:m_LoadCollider(Collider)
+	end
+end
+
+-- Public
+
+--- @within ColliderObject
+--- @return BasePart
+function Class:GetObject()
+	return self.m_Object
+end
+
+--- @within ColliderObject
+--- @param Point Vector3
+--- @param Radius number -- Radius of bone
+--- @return {[number]: {ClosestPoint: Vector3, Normal: Vector3}}
+function Class:GetCollisions(Point, Radius)
+	debug.profilebegin("ColliderObject")
+	if not self.m_Object then
+		debug.profileend()
+		return {}
+	end
+
+	if #self.Colliders == 0 then
+		debug.profileend()
+		return {}
+	end
+
+	debug.profilebegin("Sleep Cycle")
+	if os.clock() - self.m_LastSleepCycle >= SleepCycleInterval then -- Run sleep conditions every 5th of a second
+		self.m_LastSleepCycle = os.clock()
+
+		if self.m_Object.Parent ~= nil then -- If our object is not a descendant of workspace put it to sleep
+			self.m_Awake = true
+		else
+			self.m_Awake = false
+		end
+	end
+	debug.profileend()
+
+	if not self.m_Awake then
+		debug.profileend()
+		return {}
+	end
+
+	local Collisions = {}
+
+	debug.profilebegin("Determine Collisions")
+	for _, Collider in pairs(self.Colliders) do
+		debug.profilebegin("Determine collision")
+		local IsInside, ClosestPoint, Normal = Collider:GetClosestPoint(Point, Radius)
+		debug.profileend()
+
+		if IsInside then
+			table.insert(Collisions, { ClosestPoint = ClosestPoint, Normal = Normal })
+		end
+	end
+	debug.profileend()
+	debug.profileend()
+
+	return Collisions
+end
+
+--- @within ColliderObject
+function Class:Step()
+	debug.profilebegin("ColliderObject")
+	for _, Collider in pairs(self.Colliders) do
+		Collider:Step()
+	end
+	debug.profileend()
+end
+
+--- @within ColliderObject
+--- @param FILL_COLLIDERS boolean
+--- @param SHOW_INFLUENCE boolean
+--- @param SHOW_AWAKE boolean
+--- @param SHOW_BROADPHASE boolean
+function Class:DrawDebug(FILL_COLLIDERS, SHOW_INFLUENCE, SHOW_AWAKE, SHOW_BROADPHASE)
+	for _, Collider in pairs(self.Colliders) do
+		Collider:DrawDebug(self, FILL_COLLIDERS, SHOW_INFLUENCE, SHOW_AWAKE, SHOW_BROADPHASE)
+		Collider.InNarrowphase = false
+	end
+end
+
+--- @within ColliderObject
+function Class:Destroy()
+	
+	SB_VERBOSE_LOG("Collider object destroying, object: " .. tostring(self.m_Object))
+
+	self.DestroyConnection:Disconnect()
+
+	if #self.Colliders ~= 0 then
+		for _, Collider in pairs(self.Colliders) do
+			Collider:Destroy()
+		end
+	end
+
+	setmetatable(self, nil)
+	
+end
+
+return Class
+
+end
+loaders[node("Components/Collision/Colliders/Box")] = function(script, require)
+local function SafeUnit(v3)
+	if v3.Magnitude == 0 then
+		return Vector3.new(0, 0, 0)
+	end
+
+	return v3.Unit
+end
+
+local function ClosestPointFunc(cframe, size, point)
+	local rel = cframe:pointToObjectSpace(point)
+	local sx, sy, sz = size.x, size.y, size.z
+	local rx, ry, rz = rel.x, rel.y, rel.z
+
+	-- constrain to within the box
+	local cx = math.clamp(rx, -sx * 0.5, sx * 0.5)
+	local cy = math.clamp(ry, -sy * 0.5, sy * 0.5)
+	local cz = math.clamp(rz, -sz * 0.5, sz * 0.5)
+
+	if not (cx == rx and cy == ry and cz == rz) then
+		local closestPoint = cframe * Vector3.new(cx, cy, cz)
+		local normal = SafeUnit(point - closestPoint)
+		return false, closestPoint, normal
+	end
+
+	-- else, they are intersecting, find the surface the point is closest to
+
+	local posX = rx - sx * 0.5
+	local posY = ry - sy * 0.5
+	local posZ = rz - sz * 0.5
+	local negX = -rx - sx * 0.5
+	local negY = -ry - sy * 0.5
+	local negZ = -rz - sz * 0.5
+
+	local max = math.max(posX, posY, posZ, negX, negY, negZ)
+	if max == posX then
+		local closestPoint = cframe * Vector3.new(sx * 0.5, ry, rz)
+		return true, closestPoint, cframe.XVector
+	elseif max == posY then
+		local closestPoint = cframe * Vector3.new(rx, sy * 0.5, rz)
+		return true, closestPoint, cframe.YVector
+	elseif max == posZ then
+		local closestPoint = cframe * Vector3.new(rx, ry, sz * 0.5)
+		return true, closestPoint, cframe.ZVector
+	elseif max == negX then
+		local closestPoint = cframe * Vector3.new(-sx * 0.5, ry, rz)
+		return true, closestPoint, -cframe.XVector
+	elseif max == negY then
+		local closestPoint = cframe * Vector3.new(rx, -sy * 0.5, rz)
+		return true, closestPoint, -cframe.YVector
+	elseif max == negZ then
+		local closestPoint = cframe * Vector3.new(rx, ry, -sz * 0.5)
+		return true, closestPoint, -cframe.ZVector
+	end
+
+	-- Shouldnt reach
+	warn("CLOSEST POINT ON BOX FAIL")
+	return false, cframe.Position, Vector3.new(0, 0, 0)
+end
+
+return function(BoxCFrame, BoxSize, Point, Radius) -- Sphere vs Box
+	debug.profilebegin("Box Testing")
+	local IsInside, ClosestPoint, Normal = ClosestPointFunc(BoxCFrame, BoxSize, Point)
+
+	if IsInside then
+		return IsInside, ClosestPoint, Normal
+	end
+
+	local DistanceToCp = (ClosestPoint - Point).Magnitude
+
+	IsInside = (DistanceToCp < Radius)
+	debug.profileend()
+	return IsInside, ClosestPoint, Normal
+end
+
+end
+loaders[node("Components/Collision/Colliders/Capsule")] = function(script, require)
+--!native
+local function SafeUnit(v3)
+	if v3.Magnitude == 0 then
+		return Vector3.new(0, 0, 0)
+	end
+
+	return v3.Unit
+end
+
+local function solve(p0, d0, len, p1)
+	local v = p1 - p0
+	local k = v:Dot(d0)
+	k = math.clamp(k, -len, len)
+	return p0 + d0 * k
+end
+
+local function ClosestPointFunc(cframe, length, radius, point)
+	local l0 = solve(cframe.Position, cframe.UpVector, length * 0.5, point)
+
+	local distance = (l0 - point).Magnitude
+	local normal = SafeUnit(point - l0)
+	local is_inside = (distance <= radius)
+
+	return is_inside, l0 + (normal * radius), normal
+end
+
+return function(CapsuleCFrame, CapsuleSize, Point, Radius)
+	debug.profilebegin("Capsule Testing")
+	local CapsuleRadius = (CapsuleSize.Y < CapsuleSize.Z and CapsuleSize.Y or CapsuleSize.Z) * 0.5
+	local CapsuleLength = CapsuleSize.X
+
+	CapsuleCFrame *= CFrame.Angles(math.rad(90), -math.rad(90), 0) -- Optomize
+
+	local IsInside, ClosestPoint, Normal = ClosestPointFunc(CapsuleCFrame, CapsuleLength, CapsuleRadius, Point)
+
+	if IsInside then
+		return IsInside, ClosestPoint, Normal
+	end
+
+	local DistanceToCp = (ClosestPoint - Point).Magnitude
+
+	IsInside = (DistanceToCp < Radius)
+	debug.profileend()
+	return IsInside, ClosestPoint, Normal
+end
+
+end
+loaders[node("Components/Collision/Colliders/Cylinder")] = function(script, require)
+--!native
+local function SafeUnit(v3)
+	if v3.Magnitude == 0 then
+		return Vector3.new(0, 0, 0)
+	end
+
+	return v3.Unit
+end
+
+local function solve(p0, d0, len, p1)
+	local v = p1 - p0
+	local k = v:Dot(d0)
+	k = math.clamp(k, -len, len)
+	return p0 + d0 * k, k
+end
+
+local function ProjectOnPlane(pos, normal, point)
+	local d = point - pos
+	local v_dot = d:Dot(normal)
+	local v = point - v_dot * normal
+
+	return v
+end
+
+local function ClosestPointFunc(cframe, size, point)
+	local radius = (size.Y < size.Z and size.Y or size.Z) * 0.5
+	local length = size.X * 0.5
+	local l0, k = solve(cframe.Position, cframe.RightVector, length, point)
+
+	local endPlane = cframe.Position + -cframe.RightVector * length
+	local topPlane = cframe.Position + cframe.RightVector * length
+
+	local endPlaneN = -cframe.RightVector
+	local topPlaneN = cframe.RightVector
+
+	local projEnd = ProjectOnPlane(endPlane, endPlaneN, point)
+	local projTop = ProjectOnPlane(topPlane, topPlaneN, point)
+
+	local function GetFinalProj(proj, o)
+		local projDir = SafeUnit(proj - o)
+		local projDistance = (proj - o).Magnitude
+		return o + projDir * (projDistance < radius and projDistance or radius)
+	end
+
+	projEnd = GetFinalProj(projEnd, endPlane)
+	projTop = GetFinalProj(projTop, topPlane)
+
+	local radiusDistance = (l0 - point).Magnitude
+	local radiusNormal = SafeUnit(point - l0)
+	local radiusInside = (radiusDistance <= radius)
+	local radiusPosition = l0 + (radiusNormal * radius)
+
+	local d0 = (projTop - point).Magnitude
+	local d1 = (projEnd - point).Magnitude
+	local d2 = (radiusPosition - point).Magnitude
+
+	local d = math.min(d0, d1, d2)
+
+	if k == length or d == d0 then
+		local dot = SafeUnit(point - projTop):Dot(topPlaneN)
+		return dot < 0, projTop, topPlaneN
+	elseif k == -length or d == d1 then
+		local dot = SafeUnit(point - projEnd):Dot(endPlaneN)
+		return dot < 0, projEnd, endPlaneN
+	end
+
+	return radiusInside, radiusPosition, radiusNormal
+end
+
+return function(CylinderCFrame, CylinderSize, Point, Radius) -- IsInside, PushPosition, PushNormal
+	debug.profilebegin("Cylinder Testing")
+	local IsInside, PushPosition, PushNormal = ClosestPointFunc(CylinderCFrame, CylinderSize, Point)
+
+	if IsInside then
+		return IsInside, PushPosition, PushNormal
+	end
+
+	local PointDistance = (PushPosition - Point).Magnitude
+
+	IsInside = PointDistance < Radius
+	debug.profileend()
+	return IsInside, PushPosition, PushNormal
+end
+
+end
+loaders[node("Components/Collision/Colliders/Sphere")] = function(script, require)
+--!native
+local function SafeUnit(v3)
+	if v3.Magnitude == 0 then
+		return Vector3.new(0, 0, 0)
+	end
+
+	return v3.Unit
+end
+
+local function ClosestPointFunc(position, radius, point)
+	local distance = (position - point).Magnitude
+	local normal = SafeUnit(point - position)
+	local is_inside = (distance <= radius)
+
+	return is_inside, position + (normal * radius), normal
+end
+
+return function(Sphere0Point, Sphere0Radius, Sphere1Point, Sphere1Radius)
+	debug.profilebegin("Sphere Testing")
+	Sphere0Point = Sphere0Point.Position
+	Sphere0Radius = math.min(Sphere0Radius.X, Sphere0Radius.Y, Sphere0Radius.Z) * 0.5
+
+	local IsInside, ClosestPoint, Normal = ClosestPointFunc(Sphere0Point, Sphere0Radius, Sphere1Point)
+
+	if IsInside then
+		return IsInside, ClosestPoint, Normal
+	end
+
+	local DistanceToCp = (ClosestPoint - Sphere1Point).Magnitude
+
+	IsInside = (DistanceToCp < Sphere1Radius)
+	debug.profileend()
+	return IsInside, ClosestPoint, Normal
+end
+
+end
+loaders[node("Components/Collision/Colliders/Triangle")] = function(script, require)
+--[[
+
+    !! THIS IS NOT MEANT TO BE USED AS A COLLIDER SOLVER, ITS MEANT TO BE USED IN OTHER COLLIDER SOLVERS !!
+
+]]
+
+--!native
+local dot = Vector3.new().Dot
+local cross = Vector3.new().Cross
+local clamp = math.clamp
+
+local function SafeUnit(v3)
+	if v3.Magnitude == 0 then
+		return Vector3.new(0, 0, 0)
+	end
+
+	return v3.Unit
+end
+
+local function ClosestPointOnLineSegment(A, B, P)
+	local AB = B - A
+	local t = dot(P - A, AB) / dot(AB, AB)
+	return A + clamp(t, 0, 1) * AB
+end
+
+local function ProjectOnPlane(pos, normal, point)
+	local d = point - pos
+	local v_dot = d:Dot(normal)
+	local v = point - v_dot * normal
+
+	return v
+end
+
+local function SameSide(p1, p2, a, b)
+	local cp1 = cross(b - a, p1 - a)
+	local cp2 = cross(b - a, p2 - a)
+	if dot(cp1, cp2) >= 0 then
+		return true
+	else
+		return false
+	end
+end
+
+local function PointInTriangle(p, a, b, c)
+	if SameSide(p, a, b, c) and SameSide(p, b, a, c) and SameSide(p, c, a, b) then
+		return true
+	end
+
+	return false
+end
+
+local function ClosestPointOnTri(v0, v1, v2, point) -- ClosestPoint, Normal
+	debug.profilebegin("Triangle")
+	local Edge0 = ClosestPointOnLineSegment(v0, v1, point)
+	local Edge1 = ClosestPointOnLineSegment(v1, v2, point)
+	local Edge2 = ClosestPointOnLineSegment(v2, v0, point)
+
+	local Normal = SafeUnit(cross(v1 - v0, v2 - v0))
+	local Center = (v0 + v1 + v2) * 0.3333
+	local Projected = ProjectOnPlane(Center, Normal, point)
+
+	if PointInTriangle(point, v0, v1, v2) then
+		debug.profileend()
+		return Projected, Normal
+	end
+
+	local d0 = (Edge0 - point).Magnitude
+	local d1 = (Edge1 - point).Magnitude
+	local d2 = (Edge2 - point).Magnitude
+
+	local d = math.min(d0, d1, d2)
+
+	if d == d0 then
+		debug.profileend()
+		return Edge0, Normal
+	elseif d == d1 then
+		debug.profileend()
+		return Edge1, Normal
+	elseif d == d2 then
+		debug.profileend()
+		return Edge2, Normal
+	end
+
+	debug.profileend()
+	return point, Normal
+end
+
+return ClosestPointOnTri
+
+end
+loaders[node("Components/Constraints/AxisConstraint")] = function(script, require)
+local function SafeUnit(v3)
+	if v3.Magnitude == 0 then
+		return Vector3.new(0, 0, 0)
+	end
+
+	return v3.Unit
+end
+
+local inf = math.huge
+
+return function(self, Position, LastPosition, RootCFrame)
+	debug.profilebegin("Axis Constraint")
+	local RootOffset = RootCFrame:Inverse() * Position
+
+	local X = RootOffset.X
+	local Y = RootOffset.Y
+	local Z = RootOffset.Z
+
+	local XLimit = self.XAxisLimits
+	local YLimit = self.YAxisLimits
+	local ZLimit = self.ZAxisLimits
+
+	local XLock = self.AxisLocked[1] and 0 or 1
+	local YLock = self.AxisLocked[2] and 0 or 1
+	local ZLock = self.AxisLocked[3] and 0 or 1
+
+	-- Most bones probably wont have an axis limit, this allows us to skip all the other stuff
+	if XLimit.Min == -inf and XLimit.Max == inf and YLimit.Min == -inf and YLimit.Max == inf and ZLimit.Min == -inf and ZLimit.Max == inf then
+		if XLock == 1 and YLock == 1 and ZLock == 1 then
+			debug.profileend()
+			return Position
+		else
+			return RootCFrame * Vector3.new(X * XLock, Y * YLock, Z * ZLock)
+		end
+	end
+
+	-- If our radius is > than the diff between min and max
+	-- We do this because its faster than math.min() ВЇ\_(гѓ„)_/ВЇ
+	local XMin = XLimit.Min + self.Radius
+	local XMax = XMin <= (XLimit.Max - self.Radius) and XLimit.Max - self.Radius or XMin
+
+	local YMin = YLimit.Min + self.Radius
+	local YMax = YMin <= (YLimit.Max - self.Radius) and YLimit.Max - self.Radius or YMin
+
+	local ZMin = ZLimit.Min + self.Radius
+	local ZMax = ZMin <= (ZLimit.Max - self.Radius) and ZLimit.Max - self.Radius or ZMin
+
+	X = X < XMin and XMin or (X > XMax and XMax or X)
+	Y = Y < YMin and YMin or (Y > YMax and YMax or Y)
+	Z = Z < ZMin and ZMin or (Z > ZMax and ZMax or Z)
+
+	X *= XLock
+	Y *= YLock
+	Z *= ZLock
+
+	local WorldSpace = RootCFrame * Vector3.new(X, Y, Z)
+
+	Position = WorldSpace
+
+	local XAxis = RootCFrame.RightVector
+	local YAxis = RootCFrame.UpVector
+	local ZAxis = RootCFrame.LookVector
+
+	local DifferenceDirection = SafeUnit(Position - LastPosition)
+
+	-- Remove our velocity on the vectors we collided with, stops any weird jittering.
+	if X ~= RootOffset.X then
+		local Normal = XAxis:Dot(DifferenceDirection) < 0 and -XAxis or XAxis
+		self:ClipVelocity(Position, Normal)
+	end
+
+	if Y ~= RootOffset.Y then
+		local Normal = YAxis:Dot(DifferenceDirection) < 0 and -YAxis or YAxis
+		self:ClipVelocity(Position, Normal)
+	end
+
+	if Z ~= RootOffset.Z then
+		local Normal = ZAxis:Dot(DifferenceDirection) > 0 and -ZAxis or ZAxis
+		self:ClipVelocity(Position, Normal)
+	end
+	debug.profileend()
+
+	return Position
+end
+
+end
+loaders[node("Components/Constraints/CollisionConstraint")] = function(script, require)
+return function(self, Position, Colliders)
+	debug.profilebegin("Collision Constraint")
+	local Collisions = {}
+	local HitParts = {}
+
+	for _, Collider in pairs(Colliders) do
+		local ColliderCollisions = Collider:GetCollisions(Position, self.Radius)
+
+		if #ColliderCollisions > 0 then
+			table.insert(HitParts, Collider:GetObject())
+		end
+
+		for _, Collision in pairs(ColliderCollisions) do
+			table.insert(Collisions, Collision)
+		end
+	end
+
+	for _, Collision in pairs(Collisions) do
+		Position = Collision.ClosestPoint + (Collision.Normal * self.Radius)
+		-- self:ClipVelocity(Position, Collision.Normal) -- This causes some weird glitching issues, not sure why tbh
+	end
+
+	self.CollisionsData = Collisions
+	self.CollisionHits = HitParts
+	debug.profileend()
+
+	return Position
+end
+
+end
+loaders[node("Components/Constraints/DistanceConstraint")] = function(script, require)
+local function SafeUnit(v3)
+	if v3.Magnitude == 0 then
+		return Vector3.new(0, 0, 0)
+	end
+
+	return v3.Unit
+end
+
+return function(self, Position, BoneTree)
+	debug.profilebegin("Distance Constraint")
+	local ParentBone = BoneTree.Bones[self.ParentIndex]
+
+	if ParentBone then
+		local RestLength = self.FreeLength
+		local BoneDirection = SafeUnit(Position - ParentBone.Position)
+
+		local RestPosition = ParentBone.Position + (BoneDirection * RestLength)
+
+		debug.profileend()
+		return RestPosition
+	end
+
+	debug.profileend()
+	return
+end
+
+end
+loaders[node("Components/Constraints/FrictionConstraint")] = function(script, require)
+return function(self, Position, LastPosition)
+	local Alpha = 1 - self.Friction
+
+	return LastPosition:Lerp(Position, Alpha)
+end
+
+end
+loaders[node("Components/Constraints/RopeConstraint")] = function(script, require)
+local function SafeUnit(v3)
+	if v3.Magnitude == 0 then
+		return Vector3.new(0, 0, 0)
+	end
+
+	return v3.Unit
+end
+
+return function(self, Position, BoneTree)
+	debug.profilebegin("Rope Constraint")
+	local ParentBone = BoneTree.Bones[self.ParentIndex]
+
+	if ParentBone then
+		local RestLength = self.FreeLength
+		local BoneSub = (Position - ParentBone.Position)
+		local BoneDirection = SafeUnit(BoneSub)
+		local BoneDistance = BoneSub.Magnitude < RestLength and BoneSub.Magnitude or RestLength
+
+		local RestPosition = ParentBone.Position + (BoneDirection * BoneDistance)
+
+		debug.profileend()
+		return RestPosition
+	end
+
+	debug.profileend()
+	return
+end
+
+end
+loaders[node("Components/Constraints/RotationConstraint")] = function(script, require)
+local function SafeUnit(v3)
+	if v3.Magnitude == 0 then
+		return Vector3.new(0, 0, 0)
+	end
+
+	return v3.Unit
+end
+
+return function(self, Position, BoneTree)
+	debug.profilebegin("Rotation Constraint")
+	local ParentIndex = self.ParentIndex
+	local ParentBone = BoneTree.Bones[ParentIndex]
+
+	if not ParentBone then
+		debug.profileend()
+		return Position
+	end
+
+	local ParentBoneLimit = ParentBone.RotationLimit
+
+	if ParentBoneLimit >= 180 then
+		debug.profileend()
+		return Position
+	end
+
+	local GrandParentBone = BoneTree.Bones[ParentBone.ParentIndex]
+
+	if not GrandParentBone then
+		debug.profileend()
+		return Position
+	end
+
+	local ParentBonePosition = ParentBone.Position
+	local DefaultDirection = SafeUnit(ParentBone.Position - GrandParentBone.Position)
+
+	local DistanceToParent = (Position - ParentBonePosition).Magnitude
+	local DirectionToSelf = SafeUnit(Position - ParentBonePosition)
+
+	if ParentBoneLimit <= 0 then
+		debug.profileend()
+		return ParentBonePosition + DefaultDirection * DistanceToParent
+	end
+
+	local RotationLimit = math.rad(self.RotationLimit)
+	local VectorAngle = math.acos(DefaultDirection:Dot(DirectionToSelf))
+	local LimitedVector
+
+	if VectorAngle >= RotationLimit then
+		local Cross = SafeUnit(DefaultDirection:Cross(DirectionToSelf))
+		LimitedVector = CFrame.fromAxisAngle(Cross, RotationLimit) * DefaultDirection
+	else
+		LimitedVector = DirectionToSelf
+	end
+
+	if LimitedVector ~= LimitedVector then -- Somewhat hacky fix
+		LimitedVector = DefaultDirection
+	end
+
+	Position = ParentBonePosition + LimitedVector * DistanceToParent
+
+	debug.profileend()
+	return Position
+end
+
+end
+loaders[node("Components/Constraints/SpringConstraint")] = function(script, require)
+local function __sb2Rotation(cf) return cf - cf.Position end
+--!native
+return function(self, Position, RestPosition, BoneTree, Delta)
+	debug.profilebegin("Spring Constraint")
+
+	local Settings = BoneTree.Settings
+	local Stiffness = Settings.Stiffness
+	local Elasticity = Settings.Elasticity
+
+	local ParentBone = BoneTree.Bones[self.ParentIndex]
+
+	if ParentBone then
+		local RestLength = self.FreeLength
+
+		if Stiffness > 0 or Elasticity > 0 then
+			local ParentBoneCFrame = CFrame.new(ParentBone.Position) * __sb2Rotation(ParentBone.TransformOffset)
+			RestPosition = RestPosition or (ParentBoneCFrame * CFrame.new(self.LocalTransformOffset.Position)).Position
+
+			local ElasticDifference = RestPosition - Position
+			Position += ElasticDifference * (Elasticity * Delta)
+
+			if Stiffness > 0 then
+				local StiffDifference = RestPosition - Position
+				local Length = StiffDifference.Magnitude
+				local MaxLength = RestLength * (1 - Stiffness) * 2
+				if Length > MaxLength then
+					Position += StiffDifference * ((Length - MaxLength) / Length)
+				end
+			end
+		end
+
+		local Difference = ParentBone.Position - Position
+		local Length = Difference.Magnitude
+		if Length > 0 then
+			Position += Difference * ((Length - RestLength) / Length)
+		end
+	end
+	debug.profileend()
+
+	return Position
+end
+
+end
 loaders[node("Dependencies/Config")] = function(script, require)
 -- Configuration
 
@@ -5342,1131 +6465,6 @@ end
 return module
 
 end
-loaders[node("Components/Collision/Collider")] = function(script, require)
---!nocheck
-
-local HttpService = game:GetService("HttpService")
-
-local Dependencies = script.Parent.Parent.Parent:WaitForChild("Dependencies")
-local CollisionSolvers = script.Parent:WaitForChild("Colliders")
-local BoxSolver = require(CollisionSolvers:WaitForChild("Box"))
-local CapsuleSolver = require(CollisionSolvers:WaitForChild("Capsule"))
-local CylinderSolver = require(CollisionSolvers:WaitForChild("Cylinder"))
-local SphereSolver = require(CollisionSolvers:WaitForChild("Sphere"))
-
-local Utilities = require(script.Parent.Parent.Parent:WaitForChild("Dependencies"):WaitForChild("Utilities"))
-
-local SB_VERBOSE_LOG = Utilities.SB_VERBOSE_LOG
-
-local Radians = 0.017453
-local Gizmo = require(Dependencies:WaitForChild("Debug"):WaitForChild("Gizmo"))
-
---- @class Collider
---- Internal class for colliders
---- : Caution:
---- Changes to the syntax in this class will not count to the major version in semver.
---- :::
-
---- @within Collider
---- @prop Type string
-
---- @within Collider
---- @prop Scale Vector3
-
---- @within Collider
---- @prop Offset Vector3
-
---- @within Collider
---- @prop Rotation Vector3
-
---- @within Collider
---- @prop PreviousScale Vector3
-
---- @within Collider
---- @prop PreviousOffset Vector3
-
---- @within Collider
---- @prop PreviousRotation Vector3
-
---- @within Collider
---- @private
---- @readonly
---- @prop m_Object BasePart
-
---- @within Collider
---- @prop InNarrowphase boolean
-
---- @within Collider
---- @prop ObjectConnection RBXScriptConnection
-
---- @within Collider
---- @prop Transform CFrame
-
---- @within Collider
---- @prop Size Vector3
-
---- @within Collider
---- @prop GUID string
-
-local Class = {}
-Class.__index = Class
-
---- @within Collider
-function Class.new()
-	local self = setmetatable({
-		Type = "Box",
-		Scale = Vector3.new(0, 0, 0),
-		Offset = Vector3.new(0, 0, 0),
-		Rotation = Vector3.new(0, 0, 0),
-		Radius = 0,
-
-		PreviousScale = Vector3.new(0, 0, 0),
-		PreviousOffset = Vector3.new(0, 0, 0),
-		PreviousRotation = Vector3.new(0, 0, 0),
-		PreviousObjectPosition = Vector3.new(0, 0, 0),
-		PreviousObjectRotation = Vector3.new(0, 0, 0),
-
-		m_Object = nil,
-
-		InNarrowphase = false,
-
-		Transform = CFrame.new(),
-		Size = Vector3.new(0, 0, 0),
-
-		GUID = HttpService:GenerateGUID(false),
-	}, Class)
-
-	return self
-end
-
---- @within Collider
---- @param Object BasePart
-function Class:SetObject(Object: BasePart)
-	self.m_Object = Object
-
-	self:UpdateTransform()
-end
-
---- @within Collider
-function Class:UpdateTransform()
-	debug.profilebegin("Update Transform")
-	local Object = self.m_Object
-	local ObjectCFrame = Object.CFrame
-	local ObjectSize = Object.Size
-
-	local Scale = self.Scale
-	local Offset = self.Offset
-	local Rotation = self.Rotation
-
-	local ScaledOffset = ObjectSize * Offset
-	local ScaledSize = ObjectSize * Scale
-
-	local RotationCFrame = CFrame.Angles(Rotation.X * Radians, Rotation.Y * Radians, Rotation.Z * Radians)
-
-	self.Transform = ObjectCFrame * CFrame.new(ScaledOffset) * RotationCFrame
-	self.Size = ScaledSize
-	self.Radius = math.sqrt((math.max(ScaledSize.X, ScaledSize.Y, ScaledSize.Z) * 0.5) ^ 2 * 2)
-	debug.profileend()
-end
-
---- @within Collider
---- @param Point Vector3
---- @param Radius number
---- @return Vector3 | nil -- Returns nil if specified collider shape is invalid
-function Class:GetClosestPoint(Point, Radius)
-	if self.m_Object == nil then
-		return
-	end
-
-	self.InNarrowphase = false
-
-	-- Broadphase influence detection
-	local PointDistance = (Point - self.Transform.Position).Magnitude - Radius
-
-	if PointDistance > self.Radius then
-		return
-	end
-
-	debug.profilebegin("Narrowphase")
-
-	self.InNarrowphase = true
-
-	local Type = self.Type
-
-	-- Determine which collision solver we should send this off to
-	local IsInside, ClosestPoint, Normal
-
-	if Type == "Box" then
-		IsInside, ClosestPoint, Normal = BoxSolver(self.Transform, self.Size, Point, Radius)
-	end
-
-	if Type == "Capsule" then
-		IsInside, ClosestPoint, Normal = CapsuleSolver(self.Transform, self.Size, Point, Radius)
-	end
-
-	if Type == "Sphere" then
-		IsInside, ClosestPoint, Normal = SphereSolver(self.Transform, self.Size, Point, Radius)
-	end
-
-	if Type == "Cylinder" then
-		IsInside, ClosestPoint, Normal = CylinderSolver(self.Transform, self.Size, Point, Radius)
-	end
-
-	debug.profileend()
-
-	return IsInside, ClosestPoint, Normal
-end
-
---- @within Collider
-function Class:Step()
-	debug.profilebegin("Collider")
-	self:UpdateTransform()
-	debug.profileend()
-end
-
---- @within Collider
---- @param ColliderObject ColliderObject
---- @param FILL_COLLIDER boolean
---- @param SHOW_INFLUENCE boolean
---- @param SHOW_AWAKE boolean
---- @param SHOW_BROADPHASE boolean
-function Class:DrawDebug(ColliderObject, FILL_COLLIDER, SHOW_INFLUENCE, SHOW_AWAKE, SHOW_BROADPHASE)
-	local COLLIDER_COLOR = Color3.new(0.509803, 0.933333, 0.427450)
-	local FILL_COLOR = Color3.new(0.901960, 0.784313, 0.513725)
-	local SLEEP_COLOR = Color3.new(1, 0, 1)
-	local BROADPHASE_COLOR = Color3.new(0, 1, 1)
-	local INFLUENCE_COLOR = Color3.new(1, 0.3, 0.3)
-
-	local Type = self.Type
-	local Transform = self.Transform
-	local Size = self.Size
-
-	if not ColliderObject.m_Awake and SHOW_AWAKE then
-		COLLIDER_COLOR = SLEEP_COLOR
-	end
-
-	if self.InNarrowphase == false and SHOW_BROADPHASE then
-		FILL_COLOR = BROADPHASE_COLOR
-	end
-
-	if SHOW_INFLUENCE then
-		Gizmo.SetStyle(INFLUENCE_COLOR, 0, false)
-		Gizmo.Sphere:Draw(Transform, self.Radius, 25, 360)
-	end
-
-	if Type == "Box" then
-		Gizmo.SetStyle(COLLIDER_COLOR, 0, false)
-		Gizmo.Box:Draw(Transform, Size)
-
-		if FILL_COLLIDER then
-			Gizmo.SetStyle(FILL_COLOR, 0.75, false)
-			Gizmo.VolumeBox:Draw(Transform, Size)
-			Gizmo.PushProperty("Transparency", 0)
-		end
-
-		return
-	end
-
-	if Type == "Capsule" then
-		local CapsuleRadius = (Size.Y < Size.Z and Size.Y or Size.Z) * 0.5
-		local CapsuleLength = Size.X
-
-		local TransformedTransform = Transform * CFrame.Angles(math.rad(90), -math.rad(90), 0)
-
-		Gizmo.SetStyle(COLLIDER_COLOR, 0, false)
-		Gizmo.Capsule:Draw(TransformedTransform, CapsuleRadius, CapsuleLength, 15)
-
-		if FILL_COLLIDER then
-			local Top = TransformedTransform.Position + TransformedTransform.UpVector * (CapsuleLength * 0.5)
-			local Bottom = TransformedTransform.Position - TransformedTransform.UpVector * (CapsuleLength * 0.5)
-
-			Gizmo.SetStyle(FILL_COLOR, 0.75, false)
-			Gizmo.VolumeCylinder:Draw(Transform, CapsuleRadius, CapsuleLength)
-			Gizmo.VolumeSphere:Draw(CFrame.new(Top), CapsuleRadius)
-			Gizmo.VolumeSphere:Draw(CFrame.new(Bottom), CapsuleRadius)
-			Gizmo.PushProperty("Transparency", 0)
-		end
-
-		return
-	end
-
-	if Type == "Sphere" then
-		local Radius = math.min(Size.X, Size.Y, Size.Z) * 0.5
-
-		Gizmo.SetStyle(COLLIDER_COLOR, 0, false)
-		Gizmo.Sphere:Draw(Transform, Radius, 15, 360)
-
-		if FILL_COLLIDER then
-			Gizmo.SetStyle(FILL_COLOR, 0.75, false)
-			Gizmo.VolumeSphere:Draw(Transform, Radius)
-			Gizmo.PushProperty("Transparency", 0)
-		end
-
-		return
-	end
-
-	if Type == "Cylinder" then
-		local Radius = (Size.Y < Size.Z and Size.Y or Size.Z) * 0.5
-
-		Gizmo.SetStyle(COLLIDER_COLOR, 0, false)
-		Gizmo.Cylinder:Draw(Transform * CFrame.Angles(0, 0, math.rad(90)), Radius, Size.X, 15)
-
-		if FILL_COLLIDER then
-			Gizmo.SetStyle(FILL_COLOR, 0.75, false)
-			Gizmo.VolumeCylinder:Draw(Transform * CFrame.Angles(0, -math.rad(90), 0), Radius, Size.X, 0, 360)
-			Gizmo.PushProperty("Transparency", 0)
-		end
-
-		return
-	end
-end
-
---- @within Collider
-function Class:Destroy()
-	SB_VERBOSE_LOG("Collider destroying, object: " .. tostring(self.m_Object))
-
-	setmetatable(self, nil)
-end
-
-return Class
-
-end
-loaders[node("Components/Collision/ColliderObject")] = function(script, require)
-local ColliderClass = require(script.Parent:WaitForChild("Collider"))
-local Utilities = require(script.Parent.Parent.Parent:WaitForChild("Dependencies"):WaitForChild("Utilities"))
-
-local SB_VERBOSE_LOG = Utilities.SB_VERBOSE_LOG
-local SleepCycleInterval = 1 / 5
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
---- @class ColliderObject
---- Internal class for collider
---- : Caution:
---- Changes to the syntax in this class will not count to the major version in semver.
---- :::
-
---- @within ColliderObject
---- @private
---- @readonly
---- @prop m_Object BasePart
-
---- @within ColliderObject
---- @readonly
---- @prop Destroyed boolean
-
---- @within ColliderObject
---- @readonly
---- @prop Colliders {}
-
-local Class = {}
-Class.__index = Class
-
---- @within ColliderObject
---- @param ColliderTable {[number]: {Type: string, ScaleX: number, ScaleY: number, ScaleZ: number, OffsetX: number, OffsetY: number, OffsetZ: number, RotationX: number, RotationY: number, RotationZ: number}}
---- @param Object BasePart
---- @return ColliderObject
-function Class.new(ColliderTable: IColliderTable, Object: BasePart): IColliderObject
-	local self = setmetatable({
-		m_Object = Object,
-		m_Awake = true,
-		m_LastSleepCycle = 0,
-		Destroyed = false,
-		Colliders = {},
-	}, Class)
-
-	self:m_LoadColliderTable(ColliderTable)
-
-	self.DestroyConnection = Object:GetPropertyChangedSignal("Parent"):Connect(function()
-		if Object.Parent == nil then
-			self.Destroyed = true
-		end
-	end)
-
-	return self
-end
-
---- @within ColliderObject
---- @private
---- @param Collider {Type: string, ScaleX: number, ScaleY: number, ScaleZ: number, OffsetX: number, OffsetY: number, OffsetZ: number, RotationX: number, RotationY: number, RotationZ: number}
-function Class:m_LoadCollider(Collider: IRawCollider)
-	local FormattedScale = Vector3.new(Collider.ScaleX, Collider.ScaleY, Collider.ScaleZ)
-	local FormattedOffset = Vector3.new(Collider.OffsetX, Collider.OffsetY, Collider.OffsetZ)
-	local FormattedRotation = Vector3.new(Collider.RotationX, Collider.RotationY, Collider.RotationZ)
-
-	local ColliderSolver = ColliderClass.new()
-	ColliderSolver.Scale = FormattedScale
-	ColliderSolver.Offset = FormattedOffset
-	ColliderSolver.Rotation = FormattedRotation
-	ColliderSolver.Type = Collider.Type
-	ColliderSolver:SetObject(self.m_Object)
-
-	table.insert(self.Colliders, ColliderSolver)
-end
-
---- @within ColliderObject
---- @private
---- @param ColliderTable {[number]: {Type: string, ScaleX: number, ScaleY: number, ScaleZ: number, OffsetX: number, OffsetY: number, OffsetZ: number, RotationX: number, RotationY: number, RotationZ: number}}
-function Class:m_LoadColliderTable(ColliderTable: IColliderTable)
-	for _, Collider in pairs(ColliderTable) do
-		self:m_LoadCollider(Collider)
-	end
-end
-
--- Public
-
---- @within ColliderObject
---- @return BasePart
-function Class:GetObject()
-	return self.m_Object
-end
-
---- @within ColliderObject
---- @param Point Vector3
---- @param Radius number -- Radius of bone
---- @return {[number]: {ClosestPoint: Vector3, Normal: Vector3}}
-function Class:GetCollisions(Point, Radius)
-	debug.profilebegin("ColliderObject")
-	if not self.m_Object then
-		debug.profileend()
-		return {}
-	end
-
-	if #self.Colliders == 0 then
-		debug.profileend()
-		return {}
-	end
-
-	debug.profilebegin("Sleep Cycle")
-	if os.clock() - self.m_LastSleepCycle >= SleepCycleInterval then -- Run sleep conditions every 5th of a second
-		self.m_LastSleepCycle = os.clock()
-
-		if self.m_Object.Parent ~= nil then -- If our object is not a descendant of workspace put it to sleep
-			self.m_Awake = true
-		else
-			self.m_Awake = false
-		end
-	end
-	debug.profileend()
-
-	if not self.m_Awake then
-		debug.profileend()
-		return {}
-	end
-
-	local Collisions = {}
-
-	debug.profilebegin("Determine Collisions")
-	for _, Collider in pairs(self.Colliders) do
-		debug.profilebegin("Determine collision")
-		local IsInside, ClosestPoint, Normal = Collider:GetClosestPoint(Point, Radius)
-		debug.profileend()
-
-		if IsInside then
-			table.insert(Collisions, { ClosestPoint = ClosestPoint, Normal = Normal })
-		end
-	end
-	debug.profileend()
-	debug.profileend()
-
-	return Collisions
-end
-
---- @within ColliderObject
-function Class:Step()
-	debug.profilebegin("ColliderObject")
-	for _, Collider in pairs(self.Colliders) do
-		Collider:Step()
-	end
-	debug.profileend()
-end
-
---- @within ColliderObject
---- @param FILL_COLLIDERS boolean
---- @param SHOW_INFLUENCE boolean
---- @param SHOW_AWAKE boolean
---- @param SHOW_BROADPHASE boolean
-function Class:DrawDebug(FILL_COLLIDERS, SHOW_INFLUENCE, SHOW_AWAKE, SHOW_BROADPHASE)
-	for _, Collider in pairs(self.Colliders) do
-		Collider:DrawDebug(self, FILL_COLLIDERS, SHOW_INFLUENCE, SHOW_AWAKE, SHOW_BROADPHASE)
-		Collider.InNarrowphase = false
-	end
-end
-
---- @within ColliderObject
-function Class:Destroy()
-	
-	SB_VERBOSE_LOG("Collider object destroying, object: " .. tostring(self.m_Object))
-
-	self.DestroyConnection:Disconnect()
-
-	if #self.Colliders ~= 0 then
-		for _, Collider in pairs(self.Colliders) do
-			Collider:Destroy()
-		end
-	end
-
-	setmetatable(self, nil)
-	
-end
-
-return Class
-
-end
-loaders[node("Components/Constraints/AxisConstraint")] = function(script, require)
-local function SafeUnit(v3)
-	if v3.Magnitude == 0 then
-		return Vector3.new(0, 0, 0)
-	end
-
-	return v3.Unit
-end
-
-local inf = math.huge
-
-return function(self, Position, LastPosition, RootCFrame)
-	debug.profilebegin("Axis Constraint")
-	local RootOffset = RootCFrame:Inverse() * Position
-
-	local X = RootOffset.X
-	local Y = RootOffset.Y
-	local Z = RootOffset.Z
-
-	local XLimit = self.XAxisLimits
-	local YLimit = self.YAxisLimits
-	local ZLimit = self.ZAxisLimits
-
-	local XLock = self.AxisLocked[1] and 0 or 1
-	local YLock = self.AxisLocked[2] and 0 or 1
-	local ZLock = self.AxisLocked[3] and 0 or 1
-
-	-- Most bones probably wont have an axis limit, this allows us to skip all the other stuff
-	if XLimit.Min == -inf and XLimit.Max == inf and YLimit.Min == -inf and YLimit.Max == inf and ZLimit.Min == -inf and ZLimit.Max == inf then
-		if XLock == 1 and YLock == 1 and ZLock == 1 then
-			debug.profileend()
-			return Position
-		else
-			return RootCFrame * Vector3.new(X * XLock, Y * YLock, Z * ZLock)
-		end
-	end
-
-	-- If our radius is > than the diff between min and max
-	-- We do this because its faster than math.min() ВЇ\_(гѓ„)_/ВЇ
-	local XMin = XLimit.Min + self.Radius
-	local XMax = XMin <= (XLimit.Max - self.Radius) and XLimit.Max - self.Radius or XMin
-
-	local YMin = YLimit.Min + self.Radius
-	local YMax = YMin <= (YLimit.Max - self.Radius) and YLimit.Max - self.Radius or YMin
-
-	local ZMin = ZLimit.Min + self.Radius
-	local ZMax = ZMin <= (ZLimit.Max - self.Radius) and ZLimit.Max - self.Radius or ZMin
-
-	X = X < XMin and XMin or (X > XMax and XMax or X)
-	Y = Y < YMin and YMin or (Y > YMax and YMax or Y)
-	Z = Z < ZMin and ZMin or (Z > ZMax and ZMax or Z)
-
-	X *= XLock
-	Y *= YLock
-	Z *= ZLock
-
-	local WorldSpace = RootCFrame * Vector3.new(X, Y, Z)
-
-	Position = WorldSpace
-
-	local XAxis = RootCFrame.RightVector
-	local YAxis = RootCFrame.UpVector
-	local ZAxis = RootCFrame.LookVector
-
-	local DifferenceDirection = SafeUnit(Position - LastPosition)
-
-	-- Remove our velocity on the vectors we collided with, stops any weird jittering.
-	if X ~= RootOffset.X then
-		local Normal = XAxis:Dot(DifferenceDirection) < 0 and -XAxis or XAxis
-		self:ClipVelocity(Position, Normal)
-	end
-
-	if Y ~= RootOffset.Y then
-		local Normal = YAxis:Dot(DifferenceDirection) < 0 and -YAxis or YAxis
-		self:ClipVelocity(Position, Normal)
-	end
-
-	if Z ~= RootOffset.Z then
-		local Normal = ZAxis:Dot(DifferenceDirection) > 0 and -ZAxis or ZAxis
-		self:ClipVelocity(Position, Normal)
-	end
-	debug.profileend()
-
-	return Position
-end
-
-end
-loaders[node("Components/Constraints/CollisionConstraint")] = function(script, require)
-return function(self, Position, Colliders)
-	debug.profilebegin("Collision Constraint")
-	local Collisions = {}
-	local HitParts = {}
-
-	for _, Collider in pairs(Colliders) do
-		local ColliderCollisions = Collider:GetCollisions(Position, self.Radius)
-
-		if #ColliderCollisions > 0 then
-			table.insert(HitParts, Collider:GetObject())
-		end
-
-		for _, Collision in pairs(ColliderCollisions) do
-			table.insert(Collisions, Collision)
-		end
-	end
-
-	for _, Collision in pairs(Collisions) do
-		Position = Collision.ClosestPoint + (Collision.Normal * self.Radius)
-		-- self:ClipVelocity(Position, Collision.Normal) -- This causes some weird glitching issues, not sure why tbh
-	end
-
-	self.CollisionsData = Collisions
-	self.CollisionHits = HitParts
-	debug.profileend()
-
-	return Position
-end
-
-end
-loaders[node("Components/Constraints/DistanceConstraint")] = function(script, require)
-local function SafeUnit(v3)
-	if v3.Magnitude == 0 then
-		return Vector3.new(0, 0, 0)
-	end
-
-	return v3.Unit
-end
-
-return function(self, Position, BoneTree)
-	debug.profilebegin("Distance Constraint")
-	local ParentBone = BoneTree.Bones[self.ParentIndex]
-
-	if ParentBone then
-		local RestLength = self.FreeLength
-		local BoneDirection = SafeUnit(Position - ParentBone.Position)
-
-		local RestPosition = ParentBone.Position + (BoneDirection * RestLength)
-
-		debug.profileend()
-		return RestPosition
-	end
-
-	debug.profileend()
-	return
-end
-
-end
-loaders[node("Components/Constraints/FrictionConstraint")] = function(script, require)
-return function(self, Position, LastPosition)
-	local Alpha = 1 - self.Friction
-
-	return LastPosition:Lerp(Position, Alpha)
-end
-
-end
-loaders[node("Components/Constraints/RopeConstraint")] = function(script, require)
-local function SafeUnit(v3)
-	if v3.Magnitude == 0 then
-		return Vector3.new(0, 0, 0)
-	end
-
-	return v3.Unit
-end
-
-return function(self, Position, BoneTree)
-	debug.profilebegin("Rope Constraint")
-	local ParentBone = BoneTree.Bones[self.ParentIndex]
-
-	if ParentBone then
-		local RestLength = self.FreeLength
-		local BoneSub = (Position - ParentBone.Position)
-		local BoneDirection = SafeUnit(BoneSub)
-		local BoneDistance = BoneSub.Magnitude < RestLength and BoneSub.Magnitude or RestLength
-
-		local RestPosition = ParentBone.Position + (BoneDirection * BoneDistance)
-
-		debug.profileend()
-		return RestPosition
-	end
-
-	debug.profileend()
-	return
-end
-
-end
-loaders[node("Components/Constraints/RotationConstraint")] = function(script, require)
-local function SafeUnit(v3)
-	if v3.Magnitude == 0 then
-		return Vector3.new(0, 0, 0)
-	end
-
-	return v3.Unit
-end
-
-return function(self, Position, BoneTree)
-	debug.profilebegin("Rotation Constraint")
-	local ParentIndex = self.ParentIndex
-	local ParentBone = BoneTree.Bones[ParentIndex]
-
-	if not ParentBone then
-		debug.profileend()
-		return Position
-	end
-
-	local ParentBoneLimit = ParentBone.RotationLimit
-
-	if ParentBoneLimit >= 180 then
-		debug.profileend()
-		return Position
-	end
-
-	local GrandParentBone = BoneTree.Bones[ParentBone.ParentIndex]
-
-	if not GrandParentBone then
-		debug.profileend()
-		return Position
-	end
-
-	local ParentBonePosition = ParentBone.Position
-	local DefaultDirection = SafeUnit(ParentBone.Position - GrandParentBone.Position)
-
-	local DistanceToParent = (Position - ParentBonePosition).Magnitude
-	local DirectionToSelf = SafeUnit(Position - ParentBonePosition)
-
-	if ParentBoneLimit <= 0 then
-		debug.profileend()
-		return ParentBonePosition + DefaultDirection * DistanceToParent
-	end
-
-	local RotationLimit = math.rad(self.RotationLimit)
-	local VectorAngle = math.acos(DefaultDirection:Dot(DirectionToSelf))
-	local LimitedVector
-
-	if VectorAngle >= RotationLimit then
-		local Cross = SafeUnit(DefaultDirection:Cross(DirectionToSelf))
-		LimitedVector = CFrame.fromAxisAngle(Cross, RotationLimit) * DefaultDirection
-	else
-		LimitedVector = DirectionToSelf
-	end
-
-	if LimitedVector ~= LimitedVector then -- Somewhat hacky fix
-		LimitedVector = DefaultDirection
-	end
-
-	Position = ParentBonePosition + LimitedVector * DistanceToParent
-
-	debug.profileend()
-	return Position
-end
-
-end
-loaders[node("Components/Constraints/SpringConstraint")] = function(script, require)
-local function __sb2Rotation(cf) return cf - cf.Position end
---!native
-return function(self, Position, RestPosition, BoneTree, Delta)
-	debug.profilebegin("Spring Constraint")
-
-	local Settings = BoneTree.Settings
-	local Stiffness = Settings.Stiffness
-	local Elasticity = Settings.Elasticity
-
-	local ParentBone = BoneTree.Bones[self.ParentIndex]
-
-	if ParentBone then
-		local RestLength = self.FreeLength
-
-		if Stiffness > 0 or Elasticity > 0 then
-			local ParentBoneCFrame = CFrame.new(ParentBone.Position) * __sb2Rotation(ParentBone.TransformOffset)
-			RestPosition = RestPosition or (ParentBoneCFrame * CFrame.new(self.LocalTransformOffset.Position)).Position
-
-			local ElasticDifference = RestPosition - Position
-			Position += ElasticDifference * (Elasticity * Delta)
-
-			if Stiffness > 0 then
-				local StiffDifference = RestPosition - Position
-				local Length = StiffDifference.Magnitude
-				local MaxLength = RestLength * (1 - Stiffness) * 2
-				if Length > MaxLength then
-					Position += StiffDifference * ((Length - MaxLength) / Length)
-				end
-			end
-		end
-
-		local Difference = ParentBone.Position - Position
-		local Length = Difference.Magnitude
-		if Length > 0 then
-			Position += Difference * ((Length - RestLength) / Length)
-		end
-	end
-	debug.profileend()
-
-	return Position
-end
-
-end
-loaders[node("Components/Collision/Colliders/Box")] = function(script, require)
-local function SafeUnit(v3)
-	if v3.Magnitude == 0 then
-		return Vector3.new(0, 0, 0)
-	end
-
-	return v3.Unit
-end
-
-local function ClosestPointFunc(cframe, size, point)
-	local rel = cframe:pointToObjectSpace(point)
-	local sx, sy, sz = size.x, size.y, size.z
-	local rx, ry, rz = rel.x, rel.y, rel.z
-
-	-- constrain to within the box
-	local cx = math.clamp(rx, -sx * 0.5, sx * 0.5)
-	local cy = math.clamp(ry, -sy * 0.5, sy * 0.5)
-	local cz = math.clamp(rz, -sz * 0.5, sz * 0.5)
-
-	if not (cx == rx and cy == ry and cz == rz) then
-		local closestPoint = cframe * Vector3.new(cx, cy, cz)
-		local normal = SafeUnit(point - closestPoint)
-		return false, closestPoint, normal
-	end
-
-	-- else, they are intersecting, find the surface the point is closest to
-
-	local posX = rx - sx * 0.5
-	local posY = ry - sy * 0.5
-	local posZ = rz - sz * 0.5
-	local negX = -rx - sx * 0.5
-	local negY = -ry - sy * 0.5
-	local negZ = -rz - sz * 0.5
-
-	local max = math.max(posX, posY, posZ, negX, negY, negZ)
-	if max == posX then
-		local closestPoint = cframe * Vector3.new(sx * 0.5, ry, rz)
-		return true, closestPoint, cframe.XVector
-	elseif max == posY then
-		local closestPoint = cframe * Vector3.new(rx, sy * 0.5, rz)
-		return true, closestPoint, cframe.YVector
-	elseif max == posZ then
-		local closestPoint = cframe * Vector3.new(rx, ry, sz * 0.5)
-		return true, closestPoint, cframe.ZVector
-	elseif max == negX then
-		local closestPoint = cframe * Vector3.new(-sx * 0.5, ry, rz)
-		return true, closestPoint, -cframe.XVector
-	elseif max == negY then
-		local closestPoint = cframe * Vector3.new(rx, -sy * 0.5, rz)
-		return true, closestPoint, -cframe.YVector
-	elseif max == negZ then
-		local closestPoint = cframe * Vector3.new(rx, ry, -sz * 0.5)
-		return true, closestPoint, -cframe.ZVector
-	end
-
-	-- Shouldnt reach
-	warn("CLOSEST POINT ON BOX FAIL")
-	return false, cframe.Position, Vector3.new(0, 0, 0)
-end
-
-return function(BoxCFrame, BoxSize, Point, Radius) -- Sphere vs Box
-	debug.profilebegin("Box Testing")
-	local IsInside, ClosestPoint, Normal = ClosestPointFunc(BoxCFrame, BoxSize, Point)
-
-	if IsInside then
-		return IsInside, ClosestPoint, Normal
-	end
-
-	local DistanceToCp = (ClosestPoint - Point).Magnitude
-
-	IsInside = (DistanceToCp < Radius)
-	debug.profileend()
-	return IsInside, ClosestPoint, Normal
-end
-
-end
-loaders[node("Components/Collision/Colliders/Capsule")] = function(script, require)
---!native
-local function SafeUnit(v3)
-	if v3.Magnitude == 0 then
-		return Vector3.new(0, 0, 0)
-	end
-
-	return v3.Unit
-end
-
-local function solve(p0, d0, len, p1)
-	local v = p1 - p0
-	local k = v:Dot(d0)
-	k = math.clamp(k, -len, len)
-	return p0 + d0 * k
-end
-
-local function ClosestPointFunc(cframe, length, radius, point)
-	local l0 = solve(cframe.Position, cframe.UpVector, length * 0.5, point)
-
-	local distance = (l0 - point).Magnitude
-	local normal = SafeUnit(point - l0)
-	local is_inside = (distance <= radius)
-
-	return is_inside, l0 + (normal * radius), normal
-end
-
-return function(CapsuleCFrame, CapsuleSize, Point, Radius)
-	debug.profilebegin("Capsule Testing")
-	local CapsuleRadius = (CapsuleSize.Y < CapsuleSize.Z and CapsuleSize.Y or CapsuleSize.Z) * 0.5
-	local CapsuleLength = CapsuleSize.X
-
-	CapsuleCFrame *= CFrame.Angles(math.rad(90), -math.rad(90), 0) -- Optomize
-
-	local IsInside, ClosestPoint, Normal = ClosestPointFunc(CapsuleCFrame, CapsuleLength, CapsuleRadius, Point)
-
-	if IsInside then
-		return IsInside, ClosestPoint, Normal
-	end
-
-	local DistanceToCp = (ClosestPoint - Point).Magnitude
-
-	IsInside = (DistanceToCp < Radius)
-	debug.profileend()
-	return IsInside, ClosestPoint, Normal
-end
-
-end
-loaders[node("Components/Collision/Colliders/Cylinder")] = function(script, require)
---!native
-local function SafeUnit(v3)
-	if v3.Magnitude == 0 then
-		return Vector3.new(0, 0, 0)
-	end
-
-	return v3.Unit
-end
-
-local function solve(p0, d0, len, p1)
-	local v = p1 - p0
-	local k = v:Dot(d0)
-	k = math.clamp(k, -len, len)
-	return p0 + d0 * k, k
-end
-
-local function ProjectOnPlane(pos, normal, point)
-	local d = point - pos
-	local v_dot = d:Dot(normal)
-	local v = point - v_dot * normal
-
-	return v
-end
-
-local function ClosestPointFunc(cframe, size, point)
-	local radius = (size.Y < size.Z and size.Y or size.Z) * 0.5
-	local length = size.X * 0.5
-	local l0, k = solve(cframe.Position, cframe.RightVector, length, point)
-
-	local endPlane = cframe.Position + -cframe.RightVector * length
-	local topPlane = cframe.Position + cframe.RightVector * length
-
-	local endPlaneN = -cframe.RightVector
-	local topPlaneN = cframe.RightVector
-
-	local projEnd = ProjectOnPlane(endPlane, endPlaneN, point)
-	local projTop = ProjectOnPlane(topPlane, topPlaneN, point)
-
-	local function GetFinalProj(proj, o)
-		local projDir = SafeUnit(proj - o)
-		local projDistance = (proj - o).Magnitude
-		return o + projDir * (projDistance < radius and projDistance or radius)
-	end
-
-	projEnd = GetFinalProj(projEnd, endPlane)
-	projTop = GetFinalProj(projTop, topPlane)
-
-	local radiusDistance = (l0 - point).Magnitude
-	local radiusNormal = SafeUnit(point - l0)
-	local radiusInside = (radiusDistance <= radius)
-	local radiusPosition = l0 + (radiusNormal * radius)
-
-	local d0 = (projTop - point).Magnitude
-	local d1 = (projEnd - point).Magnitude
-	local d2 = (radiusPosition - point).Magnitude
-
-	local d = math.min(d0, d1, d2)
-
-	if k == length or d == d0 then
-		local dot = SafeUnit(point - projTop):Dot(topPlaneN)
-		return dot < 0, projTop, topPlaneN
-	elseif k == -length or d == d1 then
-		local dot = SafeUnit(point - projEnd):Dot(endPlaneN)
-		return dot < 0, projEnd, endPlaneN
-	end
-
-	return radiusInside, radiusPosition, radiusNormal
-end
-
-return function(CylinderCFrame, CylinderSize, Point, Radius) -- IsInside, PushPosition, PushNormal
-	debug.profilebegin("Cylinder Testing")
-	local IsInside, PushPosition, PushNormal = ClosestPointFunc(CylinderCFrame, CylinderSize, Point)
-
-	if IsInside then
-		return IsInside, PushPosition, PushNormal
-	end
-
-	local PointDistance = (PushPosition - Point).Magnitude
-
-	IsInside = PointDistance < Radius
-	debug.profileend()
-	return IsInside, PushPosition, PushNormal
-end
-
-end
-loaders[node("Components/Collision/Colliders/Sphere")] = function(script, require)
---!native
-local function SafeUnit(v3)
-	if v3.Magnitude == 0 then
-		return Vector3.new(0, 0, 0)
-	end
-
-	return v3.Unit
-end
-
-local function ClosestPointFunc(position, radius, point)
-	local distance = (position - point).Magnitude
-	local normal = SafeUnit(point - position)
-	local is_inside = (distance <= radius)
-
-	return is_inside, position + (normal * radius), normal
-end
-
-return function(Sphere0Point, Sphere0Radius, Sphere1Point, Sphere1Radius)
-	debug.profilebegin("Sphere Testing")
-	Sphere0Point = Sphere0Point.Position
-	Sphere0Radius = math.min(Sphere0Radius.X, Sphere0Radius.Y, Sphere0Radius.Z) * 0.5
-
-	local IsInside, ClosestPoint, Normal = ClosestPointFunc(Sphere0Point, Sphere0Radius, Sphere1Point)
-
-	if IsInside then
-		return IsInside, ClosestPoint, Normal
-	end
-
-	local DistanceToCp = (ClosestPoint - Sphere1Point).Magnitude
-
-	IsInside = (DistanceToCp < Sphere1Radius)
-	debug.profileend()
-	return IsInside, ClosestPoint, Normal
-end
-
-end
-loaders[node("Components/Collision/Colliders/Triangle")] = function(script, require)
---[[
-
-    !! THIS IS NOT MEANT TO BE USED AS A COLLIDER SOLVER, ITS MEANT TO BE USED IN OTHER COLLIDER SOLVERS !!
-
-]]
-
---!native
-local dot = Vector3.new().Dot
-local cross = Vector3.new().Cross
-local clamp = math.clamp
-
-local function SafeUnit(v3)
-	if v3.Magnitude == 0 then
-		return Vector3.new(0, 0, 0)
-	end
-
-	return v3.Unit
-end
-
-local function ClosestPointOnLineSegment(A, B, P)
-	local AB = B - A
-	local t = dot(P - A, AB) / dot(AB, AB)
-	return A + clamp(t, 0, 1) * AB
-end
-
-local function ProjectOnPlane(pos, normal, point)
-	local d = point - pos
-	local v_dot = d:Dot(normal)
-	local v = point - v_dot * normal
-
-	return v
-end
-
-local function SameSide(p1, p2, a, b)
-	local cp1 = cross(b - a, p1 - a)
-	local cp2 = cross(b - a, p2 - a)
-	if dot(cp1, cp2) >= 0 then
-		return true
-	else
-		return false
-	end
-end
-
-local function PointInTriangle(p, a, b, c)
-	if SameSide(p, a, b, c) and SameSide(p, b, a, c) and SameSide(p, c, a, b) then
-		return true
-	end
-
-	return false
-end
-
-local function ClosestPointOnTri(v0, v1, v2, point) -- ClosestPoint, Normal
-	debug.profilebegin("Triangle")
-	local Edge0 = ClosestPointOnLineSegment(v0, v1, point)
-	local Edge1 = ClosestPointOnLineSegment(v1, v2, point)
-	local Edge2 = ClosestPointOnLineSegment(v2, v0, point)
-
-	local Normal = SafeUnit(cross(v1 - v0, v2 - v0))
-	local Center = (v0 + v1 + v2) * 0.3333
-	local Projected = ProjectOnPlane(Center, Normal, point)
-
-	if PointInTriangle(point, v0, v1, v2) then
-		debug.profileend()
-		return Projected, Normal
-	end
-
-	local d0 = (Edge0 - point).Magnitude
-	local d1 = (Edge1 - point).Magnitude
-	local d2 = (Edge2 - point).Magnitude
-
-	local d = math.min(d0, d1, d2)
-
-	if d == d0 then
-		debug.profileend()
-		return Edge0, Normal
-	elseif d == d1 then
-		debug.profileend()
-		return Edge1, Normal
-	elseif d == d2 then
-		debug.profileend()
-		return Edge2, Normal
-	end
-
-	debug.profileend()
-	return point, Normal
-end
-
-return ClosestPointOnTri
-
-end
 local Core=require(root)
 local configureVisibility=(function()
                                                                          
@@ -6806,8 +6804,7 @@ local function initialize(positionsText,parentsText,rotationsText,stiffness,damp
     part=make('MeshPart');part.Size=vec(sizeX,sizeY,sizeZ)
     part.Parent=workspace
     solverMode=mode or 'legacy';assert(solverMode=='legacy'or solverMode=='v1-sync'or solverMode=='v2-sync','Invalid solver')
-                                                                                
-                                                                                     
+                                                                                                                                                                                                                    
     part.CFrame=CFrame.new(x or 0,y or 0,z or 0)*CFrame.Angles(0,yaw or 0,0)
     if orientationText then local r=numbers(orientationText);assert(#r==9);part.CFrame=cf(part.Position,r)end
     part.attrs={Stiffness=math.clamp(stiffness,0,1),Damping=math.clamp(damping,0,1),WindInfluence=0,Inertia=0,UpdateRate=60}
@@ -6827,9 +6824,7 @@ local function initialize(positionsText,parentsText,rotationsText,stiffness,damp
         bones[i]=bone
     end
     if solverMode=='v2-sync'then
-                                                                                
-                                                                                
-                                                                            
+                                                                                                                                                                                                                                
         for _,bone in ipairs(bones)do
             if bone.Parent:IsA('Bone')and not bone:FindFirstChildWhichIsA('Bone')then
                 local length=(bone.WorldPosition-bone.Parent.WorldPosition).Magnitude
@@ -6840,7 +6835,7 @@ local function initialize(positionsText,parentsText,rotationsText,stiffness,damp
             end
         end
     end
-                                                                      
+                                                                                 
     local roots={}
     for i,parentIndex in ipairs(parents) do if parentIndex==0 then table.insert(roots,bones[i]) end end
     controller=loadSolver(solverMode).new(part,roots);controller.InRange=true

@@ -1,4 +1,4 @@
-// Zoom regression runs in a separate invisible app, never the user's window.
+// Проверка масштабирования выполняется в отдельном невидимом приложении, а не в окне пользователя.
 import {_electron as electron} from 'playwright';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -35,14 +35,14 @@ try{
   const released=await state();await page.mouse.wheel(0,80);await rendered();
   const normal=await state();assert.notEqual(normal.yaw,released.yaw);
   assert(position(normal).distanceTo(position(released))<1e-6,'releasing Ctrl restores plain-wheel rotation');
-  // Large events must remain finite and respect model-relative distance limits.
+  // Большие события должны оставаться численно корректными и соблюдать ограничения расстояния относительно модели.
   await page.locator('canvas[data-engine]').evaluate(node=>{
     for(let i=0;i<160;i++)node.dispatchEvent(new WheelEvent('wheel',{deltaY:-10000,ctrlKey:true,clientX:node.getBoundingClientRect().left+node.clientWidth/2,clientY:node.getBoundingClientRect().top+node.clientHeight/2,bubbles:true,cancelable:true}));
   });await rendered();
   const close=await state();assert(close.cameraWorld.every(Number.isFinite));
   assert(distance(close)>=close.cameraLimits[0]-1e-6);
   assert.deepEqual(close.project,baseline.project);
-  // Camera-only interaction must not trigger the edited-project warning.
+  // Взаимодействие только с камерой не должно вызывать предупреждение об изменённом проекте.
   await page.locator('#demo').evaluate(node=>node.click());await rendered();
   assert.equal((await state()).yaw,0);
   console.log('PASS Ctrl cursor zoom, plain-wheel rotation, release, distance limits and unchanged project');

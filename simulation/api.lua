@@ -50,8 +50,7 @@ local function initialize(positionsText,parentsText,rotationsText,stiffness,damp
     part=make('MeshPart');part.Size=vec(sizeX,sizeY,sizeZ)
     part.Parent=workspace
     solverMode=mode or 'legacy';assert(solverMode=='legacy'or solverMode=='v1-sync'or solverMode=='v2-sync','Invalid solver')
-    -- Start the existing solver at the actual mesh transform, not world origin.
-    -- Rest frames remain mesh-local, including when simulation restarts after edits.
+    -- Запускаем существующий модуль физики с фактическим преобразованием меша, а не в начале мировых координат. Исходные системы координат остаются локальными для меша, включая перезапуск симуляции после правок.
     part.CFrame=CFrame.new(x or 0,y or 0,z or 0)*CFrame.Angles(0,yaw or 0,0)
     if orientationText then local r=numbers(orientationText);assert(#r==9);part.CFrame=cf(part.Position,r)end
     part.attrs={Stiffness=math.clamp(stiffness,0,1),Damping=math.clamp(damping,0,1),WindInfluence=0,Inertia=0,UpdateRate=60}
@@ -71,9 +70,7 @@ local function initialize(positionsText,parentsText,rotationsText,stiffness,damp
         bones[i]=bone
     end
     if solverMode=='v2-sync'then
-        -- V2 rotates a bone using its child's simulated point. An editor's last
-        -- weighted endpoint therefore needs an unweighted calculation-only tip,
-        -- just as the legacy solver creates its own leaf tails during Init.
+        -- V2 поворачивает кость по смоделированной точке потомка. Поэтому последнему взвешенному концу редактора нужна дополнительная невзвешенная вычислительная точка, как внутренние концы листьев в старом модуле при Init.
         for _,bone in ipairs(bones)do
             if bone.Parent:IsA('Bone')and not bone:FindFirstChildWhichIsA('Bone')then
                 local length=(bone.WorldPosition-bone.Parent.WorldPosition).Magnitude
@@ -84,7 +81,7 @@ local function initialize(positionsText,parentsText,rotationsText,stiffness,damp
             end
         end
     end
-    -- One trusted controller already supports independent root trees.
+    -- Один проверенный контроллер уже поддерживает независимые корневые деревья.
     local roots={}
     for i,parentIndex in ipairs(parents) do if parentIndex==0 then table.insert(roots,bones[i]) end end
     controller=loadSolver(solverMode).new(part,roots);controller.InRange=true

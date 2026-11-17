@@ -1,5 +1,4 @@
--- Minimal Roblox math/instance adapter for the trusted SmartBone solver.
--- Not a general Roblox emulator, and not an executor for imported asset scripts.
+-- Минимальный адаптер математики и объектов Roblox для проверенного модуля SmartBone. Это не универсальный эмулятор Roblox и не исполнитель скриптов импортируемых ассетов.
 local vectorMethods, vectorMeta = {}, {}
 local function vec(x,y,z) return setmetatable({X=x or 0,Y=y or 0,Z=z or 0},vectorMeta) end
 vectorMeta.__index=function(v,key)
@@ -21,8 +20,7 @@ local Vector3={new=vec}
 local identity={1,0,0,0,1,0,0,0,1}
 local cfMethods,cfMeta={},{}
 local function cf(position,matrix) return setmetatable({p=position or vec(),r=matrix or identity},cfMeta) end
--- Roblox supports CFrame - Vector3; the shared legacy solver uses this to
--- extract rotation without depending on the newer CFrame.Rotation property.
+-- Roblox поддерживает CFrame - Vector3; общий старый модуль так извлекает вращение, не полагаясь на новое свойство CFrame.Rotation.
 cfMeta.__sub=function(c,v) return cf(c.p-v,c.r) end
 local function rotate(r,v) return vec(r[1]*v.X+r[2]*v.Y+r[3]*v.Z,r[4]*v.X+r[5]*v.Y+r[6]*v.Z,r[7]*v.X+r[8]*v.Y+r[9]*v.Z) end
 cfMeta.__index=function(c,key)

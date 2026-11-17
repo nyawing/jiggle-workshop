@@ -42,7 +42,7 @@ app.whenReady().then(()=>{
   win=new BrowserWindow({show:process.env.WORKSHOP_TEST!=='1',width:1250,height:830,minWidth:980,minHeight:650,backgroundColor:'#11151f',title:'Jiggle Workshop',webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,backgroundThrottling:false,offscreen:process.env.WORKSHOP_TEST==='1'}});
   win.setMenu(null);win.webContents.setWindowOpenHandler(()=>({action:'deny'}));
   win.webContents.on('will-navigate',event=>event.preventDefault());
-  // Covers the title-bar X, Alt+F4, app.quit and reload without losing edits.
+  // Защищаем изменения при закрытии крестиком, Alt+F4, app.quit и перезагрузке окна.
   win.webContents.on('will-prevent-unload',event=>{
     const choice=dialog.showMessageBoxSync(win,{
       type:'warning',title:'Несохранённые изменения',

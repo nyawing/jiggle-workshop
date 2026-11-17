@@ -2,13 +2,7 @@ import * as THREE from 'three';
 import type {GeometryData} from './model';
 import type {SurfaceGraph} from './brush';
 
-/** CSS-pixel projection and brush queries. Call update before querying or hovering.
- * x/y are CSS pixels, z is NDC depth (-1 near, +1 far). point returns undefined
- * for clipped, isolated, culled, or occluded vertices. Arrays retain all projected
- * coordinates; use point when hover must obey the brush's visibility rules.
- * GeometryData supplies stable vertex IDs; mesh geometry supplies current indices
- * and posed positions. No raycasts are used. Mark changed attributes needsUpdate.
- */
+/** Проекция в CSS-пикселях и запросы кисти. Перед запросом или наведением вызывайте update. X и Y — CSS-пиксели, Z — глубина NDC: от -1 у ближней плоскости до +1 у дальней. point возвращает undefined для отсечённых, изолированных, скрытых или перекрытых вершин. Массивы сохраняют все проекции; для соблюдения видимости при наведении используйте point. GeometryData задаёт стабильные ID вершин, геометрия меша — текущие индексы и позиции в позе. Лучи не используются. Изменённые атрибуты помечайте needsUpdate. */
 export class WeightProjection {
   readonly x: Float64Array;
   readonly y: Float64Array;
@@ -42,19 +36,14 @@ export class WeightProjection {
     return this.eligible[index] ? {x: this.x[index], y: this.y[index], z: this.z[index]} : undefined;
   }
 
-  /** Rebuild only when transforms, pose, geometry versions, viewport, material
-   * sides/groups, index identity/version, draw range, or component selection change.
-   * through skips both depth visibility and sidedness, retaining isolation.
-   */
+  /** Перестраиваем только при изменении преобразований, позы, версий геометрии, области просмотра, сторон или групп материала, индексов и их версий, диапазона отрисовки или выбора компонентов. through отключает проверку глубины и сторон, сохраняя изоляцию. */
   update(mesh: THREE.SkinnedMesh, camera: THREE.Camera, widthCSS: number, heightCSS: number,
     through: boolean, visibleComponents?: Set<number>, graph?: SurfaceGraph, restPose = false): void {
     mesh.updateWorldMatrix(true, false);
-    // SkinnedMesh refreshes bindMatrixInverse in updateMatrixWorld (the base
-    // updateWorldMatrix path alone does not run that override).
+    // SkinnedMesh обновляет bindMatrixInverse в updateMatrixWorld; один лишь базовый updateWorldMatrix это переопределение не вызывает.
     mesh.updateMatrixWorld(true);
     camera.updateWorldMatrix(true, false);
-    // Skeleton.update normally runs during rendering; update here for queries
-    // between a bone edit and the next render.
+    // Обычно Skeleton.update выполняется при отрисовке; здесь обновляем скелет для запросов между правкой кости и следующим кадром.
     if (mesh.skeleton) {
       for (const bone of mesh.skeleton.bones) bone.updateWorldMatrix(true, false);
       mesh.skeleton.update();
@@ -105,8 +94,7 @@ export class WeightProjection {
         const ids = [at(t),at(t+1),at(t+2)];
         if (ids.some(i => i >= clips.length || !selected(i))) continue;
         if (through) { for (const i of ids) candidates[i] = 1; continue; }
-        // Homogeneous clipping keeps triangles crossing the camera/near plane
-        // from generating huge or inverted screen bounds.
+        // Однородное отсечение не даёт треугольникам, пересекающим камеру или ближнюю плоскость, создавать огромные или перевёрнутые экранные границы.
         let polygon = ids.map(i => clips[i]);
         for (const plane of [ (v:THREE.Vector4)=>v.w+v.x, (v:THREE.Vector4)=>v.w-v.x,
           (v:THREE.Vector4)=>v.w+v.y, (v:THREE.Vector4)=>v.w-v.y,
@@ -124,8 +112,7 @@ export class WeightProjection {
           const tri=[polygon[0],polygon[j],polygon[j+1]].map(v=>({x:(v.x/v.w+1)*widthCSS/2,y:(1-v.y/v.w)*heightCSS/2,z:v.z/v.w}));
           const [a,b,c]=tri;
           const area=(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);
-          // CSS y points downward. Account for mirrored world transforms just
-          // as WebGLRenderer does when it sets the front-face winding.
+          // В CSS ось Y направлена вниз. Учитываем отражённые мировые преобразования так же, как WebGLRenderer при определении порядка обхода лицевой грани.
           const front=area * (mesh.matrixWorld.determinant()<0 ? -1 : 1)<0;
           if (!Number.isFinite(area) || Math.abs(area)<1e-12 ||
             (material.side===THREE.FrontSide&&!front)||(material.side===THREE.BackSide&&front)) continue;
@@ -150,8 +137,7 @@ export class WeightProjection {
       const x=this.x[i],y=this.y[i],z=this.z[i];
       if(!candidates[i] || !Number.isFinite(x+y+z) || z < -1 || z > 1 || x<0 || y<0 || x>widthCSS || y>heightCSS) continue;
       let visible=through, sampled=false;
-      // Vertex locations lie on triangle edges (including duplicated UV seams).
-      // Nearby pixel centers plus a depth-gradient tolerance avoid edge holes.
+      // Вершины лежат на рёбрах треугольников, включая дубли UV-швов. Ближайшие центры пикселей и допуск по градиенту глубины устраняют пропуски на краях.
       if(depth) for(let sy=Math.max(0,Math.floor(y)-1);sy<=Math.min(height-1,Math.floor(y)+1);sy++)
         for(let sx=Math.max(0,Math.floor(x)-1);sx<=Math.min(width-1,Math.floor(x)+1);sx++) {
           const k=sy*width+sx;
@@ -164,24 +150,19 @@ export class WeightProjection {
     }
   }
 
-  /** Coverage is 1 inside hardness*radius, then falls linearly to 0.
-   * hardness is clamped to [0,1]; invalid coordinates/radii return an empty map.
-   */
+  /** Покрытие равно 1 внутри hardness*radius, затем линейно падает до 0. hardness ограничивается диапазоном [0,1]; некорректные координаты или радиусы дают пустую карту. */
   query(xCSS:number,yCSS:number,radius:number,hardness:number): Map<number,number> {
     return this.querySegment(xCSS,yCSS,xCSS,yCSS,radius,hardness);
   }
 
-  /** Analytic capsule query: coverage depends on closest segment distance,
-   * independent of event spacing. A zero-length segment is a circular dab.
-   */
+  /** Аналитический запрос капсулы: покрытие зависит от расстояния до ближайшей точки отрезка, а не от шага событий. Нулевой отрезок соответствует круглому отпечатку кисти. */
   querySegment(ax:number,ay:number,bx:number,by:number,radius:number,hardness:number): Map<number,number> {
     const result=new Map<number,number>();
     if(![ax,ay,bx,by,radius,hardness].every(Number.isFinite)||radius<=0) return result;
     const dx=bx-ax,dy=by-ay,length2=dx*dx+dy*dy,h=THREE.MathUtils.clamp(hardness,0,1);
     const minX=Math.floor((Math.min(ax,bx)-radius)/this.cellSize),maxX=Math.floor((Math.max(ax,bx)+radius)/this.cellSize);
     const minY=Math.floor((Math.min(ay,by)-radius)/this.cellSize),maxY=Math.floor((Math.max(ay,by)+radius)/this.cellSize);
-    // Iterate occupied cells so a long offscreen segment cannot cause a huge
-    // empty-cell traversal. Each vertex belongs to exactly one bucket.
+    // Перебираем занятые ячейки, чтобы длинный отрезок за экраном не вызывал огромный обход пустых ячеек. Каждая вершина принадлежит ровно одной ячейке.
     for(const [key,vertices] of this.grid) {
       const [cx,cy]=key.split(',').map(Number);
       if(cx<minX||cx>maxX||cy<minY||cy>maxY) continue;

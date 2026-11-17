@@ -1,8 +1,7 @@
--- Only serialize the model; never execute scripts found inside it.
+-- Только сериализуем модель; скрипты внутри неё не выполняем.
 local input, output, inputFormat, outputFormat = ...
 local objects = fs.read(input, inputFormat)
--- RBXMX represents BrickColor with an <int> element. Without a descriptor,
--- rbxmk otherwise retains it as Int and writes wire type 3 instead of 11.
+-- RBXMX представляет BrickColor элементом <int>. Без дескриптора rbxmk сохраняет его как Int и пишет двоичный тип 3 вместо 11.
 if outputFormat == "rbxm" then
     local descendants = objects:GetDescendants()
     table.insert(descendants, objects)
@@ -21,15 +20,10 @@ if outputFormat == "rbxmx" then
             if item.ClassName == "Script" or item.ClassName == "LocalScript" or item.ClassName == "ModuleScript" then
                 item:Destroy()
             else
-                -- Binary RBXM strings lack XML type hints without a descriptor.
-                -- Restore known binary fields before serializing XML; otherwise
-                -- embedded NULs become invalid XML character references.
+                -- Без дескриптора двоичные строки RBXM не содержат XML-подсказок типов. Перед сериализацией в XML восстанавливаем известные двоичные поля, иначе встроенные нули превращаются в недопустимые XML-ссылки на символы.
                 for _, name in ipairs({"Tags", "AttributesSerialize", "PhysicsData", "ChildData", "MeshData", "CSGData", "SmoothGrid"}) do
                     local value = item[name]
-                    -- SharedString and other explicitly typed strings are
-                    -- userdata. Keep their original type/payload: passing a
-                    -- SharedString to BinaryString fails and destroys the
-                    -- distinction needed by XML's shared-string table.
+                    -- SharedString и другие строки с явно заданным типом представлены как userdata. Сохраняем их исходный тип и содержимое: преобразование SharedString в BinaryString завершается ошибкой и уничтожает различие, необходимое таблице общих строк XML.
                     if type(value) == "string" then
                         item[name] = types.BinaryString(value)
                     end

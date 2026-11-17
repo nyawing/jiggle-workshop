@@ -22,7 +22,7 @@ app.innerHTML=`<header><strong>Jiggle Workshop</strong><form id="remote"><input 
 <details id="boneAdvanced"><summary>Точки и дополнительные звенья</summary><label>Название части<input id="chainName" maxlength="60" placeholder="Например, левый колокольчик"></label><div class="pair"><button id="anchor">Начало</button><button id="tip">Конец</button></div><label>Точка / кость<select id="boneSelect"><option value="anchor">Крепление</option><option value="tip">Конец</option></select></label><div class="coordinates"><label>X<input id="boneX" type="number" step="0.01"></label><label>Y<input id="boneY" type="number" step="0.01"></label><label>Z<input id="boneZ" type="number" step="0.01"></label></div><div class="pair"><button id="applyPosition">Применить XYZ</button><button id="centerBone">В центр меша</button></div><button id="place" class="wide">Поставить в плоскости вида</button><p class="help">Стрелки / XYZ — оси предмета. Клик в плоскости вида сохраняет глубину точки.</p><label>Число звеньев<input id="segments" type="number" min="1" max="24" step="1" value="1"></label><button id="applySegments" class="wide">Применить число звеньев</button></details></section>
 <section id="panelWeights" hidden><div class="pair"><button id="paint" class="selected">Кисть</button><button id="erase">Стереть</button></div><label>Вес <output id="weightValue">100%</output><input id="weight" type="range" min="0" max="100" value="100"></label><label>Размер кисти<input id="radius" type="range" min="8" max="90" value="28"></label><p class="help">Кисть задаёт вес выбранной части. 100% — сильное движение, 20% — слабое, 0% — неподвижно. Контрастный вид: красный — сильный вес, синий — неподвижно; фиолетовый — другие цепочки.</p><details id="brushAdvanced"><summary>Ограничение кисти</summary><div class="pair"><button id="part">Выбрать поверхность</button><button id="unlockPart">Все поверхности</button></div><p id="partHint" class="help">Мазок остаётся на поверхности, где начат.</p><button id="all" class="wide">Привязать весь меш к этой части</button></details></section>
 <section id="panelCheck" hidden><button id="simulate" class="wide" disabled>Включить симуляцию</button><button id="reset" class="wide">Сбросить положение</button><p class="help">Тяни предмет левой кнопкой. Сброс сохраняет кости и веса.</p><details id="physicsAdvanced" hidden><summary>Параметры движения</summary><label>Характер<select id="preset"><option value="hair">Волосы</option><option value="ears">Уши</option><option value="tail">Хвост</option><option value="pendant">Подвеска</option></select></label><label>Мягкость <output id="softValue">60%</output><input id="soft" type="range" min="0" max="100" value="60"></label><label>Затухание <output id="dampValue">18%</output><input id="damp" type="range" min="0" max="100" value="18"></label><label>Предел изгиба <output id="bendLimitValue">180°</output><input id="bendLimit" type="range" min="0" max="180" value="180"></label></details></section><button id="undo" class="wide">Отменить · Ctrl+Z</button></aside>
-<dialog id="exportDialog"><div class="dialogTitle"><strong>Экспорт</strong><button id="closeExport">Закрыть</button></div><button id="saveMesh" class="wide">Сохранить .mesh</button><details id="advanced"><summary>Экспорт аксессуара RBXM</summary><p class="help">Загрузите сохранённый .mesh как ассет и укажите новый ID.</p><label>ID нового меша<input id="assetId" placeholder="После загрузки .mesh" inputmode="numeric"></label><button id="export" class="wide">Экспорт RBXM + mesh</button></details></dialog></main><footer><span id="status">Откройте аксессуар или учебный пример.</span><span>0.5.3 · V1 синхронный</span></footer>`;
+<dialog id="exportDialog"><div class="dialogTitle"><strong>Экспорт</strong><button id="closeExport">Закрыть</button></div><button id="saveMesh" class="wide">Сохранить .mesh</button><details id="advanced"><summary>Экспорт аксессуара RBXM</summary><p class="help">Загрузите сохранённый .mesh как ассет и укажите новый ID.</p><label>ID нового меша<input id="assetId" placeholder="После загрузки .mesh" inputmode="numeric"></label><button id="export" class="wide">Экспорт RBXM + mesh</button></details></dialog></main><footer><span id="status">Откройте аксессуар или учебный пример.</span><span>0.5.5 · V1 синхронный</span></footer>`;
 const el=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T;
 window.workshop?.onImportStatus?.(message=>status(message));
 const workspace=document.querySelector('main')!;
@@ -41,7 +41,7 @@ fileActions.style.borderLeft='0';fileActions.style.paddingLeft='0';
 el('saveMesh').hidden=true;el('advanced').hidden=true;
 document.querySelector('#empty h1')!.textContent='Загрузите аксессуар';
 document.querySelector('#empty p')!.textContent='Вставьте полную ссылку на предмет Roblox или Nyawing в поле сверху и нажмите «Загрузить».';
-// Keep everyday editing compact; precise positioning remains available on demand.
+// Обычное редактирование оставляем компактным; точное позиционирование доступно по запросу.
 el('undo').remove();
 el('brushAdvanced').querySelector('summary')!.textContent='Дополнительно';
 el('part').parentElement!.hidden=true;
@@ -54,7 +54,7 @@ const boneDetails=el('boneAdvanced');
 const coordinateTools=boneDetails.querySelector('.coordinates')!;
 while(coordinateTools.nextSibling)preciseTools.append(coordinateTools.nextSibling);
 preciseTools.prepend(coordinateTools);
-// The summary must precede the controls for native details keyboard behaviour.
+// Заголовок summary должен идти перед элементами управления, чтобы сохранить штатную работу details с клавиатуры.
 preciseTools.prepend(preciseTools.querySelector('summary')!);
 boneDetails.append(preciseTools);
 boneDetails.hidden=true;
@@ -74,12 +74,12 @@ fittingUi.innerHTML=`<label class="toggle"><input id="tryOn" type="checkbox">П�
 <div id="fittingOptions" hidden><label>Крепление<select id="fittingSlot"><option value="hat">Шляпа</option><option value="hair">Волосы</option><option value="face">Лицо</option><option value="neck">Шея</option><option value="back">Спина / плащ</option><option value="front">Грудь</option><option value="shoulder">Плечо</option><option value="waist">Пояс</option></select></label>
 <p>Кликни по сцене: WASD — ходьба, пробел — прыжок. Правая кнопка — камера.</p>
 <button id="fittingHome" class="wide">Вернуть персонажа на старт</button>
-<button id="fittingShiftLock" class="wide">Shift Lock · Shift</button><p>Shift — камера за плечом; Esc — освободить мышь. Удерживай пробел для повторных прыжков.</p>
+<button id="fittingShiftLock" class="wide">Камера за плечом · Shift</button><p>Shift — камера за плечом; Esc — освободить мышь. Удерживай пробел для повторных прыжков.</p>
 <details><summary>Смещение примерки</summary><p>Только для просмотра, не меняет крепление предмета.</p>
 ${['X','Y','Z'].map(axis=>`<label>${axis}<input id="fitting${axis}" type="number" min="-20" max="20" step="0.05" value="0"></label>`).join('')}</details></div>`;
 el('simulate').after(fittingUi);
 const solverLabel=document.createElement('label');solverLabel.hidden=true;solverLabel.innerHTML='Физика<select id="physicsSolver"><option value="v1-sync">V1 · синхронизация (как в игре)</option><option value="legacy">V1 · без синхронизации</option><option value="v2-sync" hidden>Архивный проект V2</option></select>';fittingUi.before(solverLabel);
-const solverNote=document.createElement('p');solverNote.id='solverNote';solverNote.style.display='none';solverNote.textContent='V2: примерка и сохранение проекта. Экспорт этой физики — после обновления игрового runtime.';solverLabel.after(solverNote);
+const solverNote=document.createElement('p');solverNote.id='solverNote';solverNote.style.display='none';solverNote.textContent='V2: примерка и сохранение проекта. Экспорт этой физики — после обновления игровой системы физики.';solverLabel.after(solverNote);
 
 const windUi=document.createElement('label');windUi.innerHTML='<input id="softWind" type="checkbox"> Лёгкий ветер';el('physicsAdvanced').before(windUi);windUi.hidden=true;
 const ribbonUi=document.createElement('div');ribbonUi.innerHTML='<label><input id="ribbonWind" type="checkbox">Волна ветра</label><label>Направление волны<select id="ribbonDirection"><option value="mixed">Плавная волна</option><option value="horizontal">Влево — вправо</option><option value="vertical">Вверх — вниз</option><option value="depth">Вперёд — назад</option></select></label>';el('boneAdvanced').before(ribbonUi);
@@ -88,7 +88,7 @@ let ribbonBones:Record<string,string>|null={};
 let legacyWave:string|null=null;
 function motionExtras(){return {ribbonBones:ribbonBones===null?undefined:Object.fromEntries(Object.entries(ribbonBones).filter(([name])=>bones.some(b=>b.name===name))),motionMode:el<HTMLSelectElement>('motionMode').value,useGravity:el<HTMLInputElement>('useGravity').checked,ribbonWind:ribbonBones===null&&legacyWave!==null,ribbonDirection:legacyWave??'mixed'};}
 function restoreMotionExtras(s:any){legacyWave=s?.ribbonWind===true?(s.ribbonDirection??'mixed'):null;ribbonBones=s?.ribbonBones&&typeof s.ribbonBones==='object'?{...s.ribbonBones}:s?.ribbonWind===true?null:{};el<HTMLSelectElement>('motionMode').value=s?.motionMode==='cape'?'cape':'standard';el<HTMLInputElement>('useGravity').checked=s?.useGravity!==false;el<HTMLInputElement>('ribbonWind').checked=s?.ribbonWind===true;el<HTMLSelectElement>('ribbonDirection').value=['horizontal','vertical','depth'].includes(s?.ribbonDirection)?s.ribbonDirection:'mixed';}
-const motionFields=[['inertia','Inertia · игнорирование движения',0,1,.01,0],['elasticity','Elasticity · возврат к исходной форме',0,1,.01,.5],['windInfluence','Влияние ветра',0,1,.01,0],['windStrength','Плотность ветра',0,10,.1,1],['windSpeed','Скорость ветра',0,30,.1,8],['windAngle','Направление ветра, °',-180,180,5,0]] as const;
+const motionFields=[['inertia','Инерция · ослабление реакции на движение',0,1,.01,0],['elasticity','Упругость · возврат к исходной форме',0,1,.01,.5],['windInfluence','Влияние ветра',0,1,.01,0],['windStrength','Плотность ветра',0,10,.1,1],['windSpeed','Скорость ветра',0,30,.1,8],['windAngle','Направление ветра, °',-180,180,5,0]] as const;
 for(const [id,title,min,max,step,value]of motionFields){const label=document.createElement('label');label.innerHTML=`${title}<input id="${id}" type="number" min="${min}" max="${max}" step="${step}" value="${value}">`;el('physicsAdvanced').append(label);}
 
 brushOptions.querySelector('details')!.id='weightActions';
@@ -96,7 +96,7 @@ const weightSettings=document.createElement('div');weightSettings.className='wei
 for(const id of ['weight','radius','brushStrength','brushHardness'])weightSettings.append(el(id).parentElement!);
 brushOptions.before(weightSettings);el('paint').parentElement!.append(el('smoothWeights'));el('paint').parentElement!.classList.add('weight-tools');
 el('weightActions').append(el('all'));el('brushAdvanced').hidden=true;
-// Compact controls: shortcuts live on the action itself, not in a help panel.
+// Компактное управление: горячие клавиши указаны на самих действиях, а не в отдельной панели справки.
 for(const [id,label] of [['chain','Новая цепочка · Ctrl+Q'],['mirrorChain','Отразить · Ctrl+D'],['paint','Кисть · V'],['erase','Ластик · E'],['selectBone','Выбрать · Q']])el(id).textContent=label;
 document.querySelectorAll<HTMLElement>('aside .help').forEach(node=>node.hidden=true);
 el('part').parentElement!.hidden=true;
@@ -117,8 +117,7 @@ const camera=new THREE.PerspectiveCamera(38,1,.01,1000);camera.position.set(6,4,
 const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.enableZoom=false;controls.enablePan=false;controls.mouseButtons={LEFT:undefined as any,MIDDLE:THREE.MOUSE.PAN,RIGHT:THREE.MOUSE.ROTATE};
 controls.zoomToCursor=true;
 el('hint').textContent='Ctrl + колёсико — приближение к курсору · Колёсико — вращение предмета · Правая кнопка — камера';
-// OrbitControls receives wheel events before the editor's rotation handler.
-// Capture sets the mode per event, so releasing Ctrl cannot leave zoom enabled.
+// OrbitControls получает события колеса раньше обработчика вращения редактора. Перехват задаёт режим для каждого события, поэтому отпускание Ctrl не оставляет масштабирование включённым.
 renderer.domElement.addEventListener('wheel',event=>{
   controls.enableZoom=event.ctrlKey&&!!geometry&&!dragging&&!transform.dragging;
   if(event.ctrlKey)event.preventDefault();
@@ -129,7 +128,7 @@ const fitting=new TryOn(scene);
 let fittingBackup:{motion:THREE.Vector3;yaw:number;camera:THREE.Vector3;target:THREE.Vector3;near:number;far:number;min:number;max:number}|null=null;
 renderer.domElement.tabIndex=0;
 const transform=new TransformControls(camera,renderer.domElement);transform.setMode('translate');transform.setSpace('local');transform.setSize(.8);scene.add(transform.getHelper());
-// Draw selectable points above the translation axes, not underneath them.
+// Рисуем выбираемые точки поверх осей перемещения, а не под ними.
 transform.getHelper().traverse(node=>{if(node instanceof THREE.Mesh||node instanceof THREE.Line)node.renderOrder=4;});
 const boneProxy=new THREE.Object3D(),boneMarkers=new THREE.Group();scene.add(boneMarkers);
 const ray=new THREE.Raycaster(),pointer=new THREE.Vector2();
@@ -154,6 +153,24 @@ let anchorSet=false,tipSet=false,graph:SurfaceGraph|null=null,strokePart:number|
 type EditState={owners:string[];partNames:Record<string,string>;activeChain:string;creating:boolean;anchorSet:boolean;tipSet:boolean;mask:Float32Array;bones:BoneData[];skin:SkinData|null;anchor:number[];tip:number[];selected:Selection;surfaceSelection:number[];isolated:boolean;physics:{stiffness:number;damping:number;rotationLimit?:number;solver?:string;motionMode?:string;useGravity?:boolean;ribbonWind?:boolean;ribbonDirection?:string;ribbonBones?:Record<string,string>;inertia?:number;elasticity?:number;windInfluence?:number;windStrength?:number;windSpeed?:number;windAngle?:number}};
 let imported:any=null,texture:THREE.Texture|null=null,material:THREE.MeshStandardMaterial|null=null,history:EditState[]=[],projectModified=false;
 let luau:LuauState|null=null,api:any=null,physicsBusy=false,needInit=false,physicsPending=0;
+// Русские контекстные подсказки; настройки и экспортируемые идентификаторы остаются прежними.
+const russianHelp:Record<string,string>={
+ soft:'Чем выше мягкость, тем свободнее изгибается цепочка.',
+ damp:'Затухание гасит колебания. Большое значение быстрее останавливает раскачивание.',
+ inertia:'Ослабляет реакцию на движение предмета. Это не настройка частоты кадров.',
+ elasticity:'Возвращает цепочку к исходной форме. Большое значение усиливает возврат.',
+ motionMode:'Исходная форма сохраняет заданные направления звеньев. Плавный изгиб передаёт изгиб вдоль цепочки, как у ткани.',
+ ribbonWind:'Добавляет волну выбранной части. Сначала выберите её цепочку костей.',
+ ribbonDirection:'Выбирает направление волны для выбранной части предмета.',
+ throughBrush:'Кисть затрагивает также скрытые поверхности за видимой стороной.',
+ brushStrength:'Сила изменения веса за один мазок.',
+ brushHardness:'Жёсткость края кисти: мягкий край даёт более плавный переход.',
+ weight:'Определяет, насколько сильно вершины следуют за выбранной цепочкой.',
+ bendLimit:'Ограничивает допустимый угол изгиба.',
+ fittingShiftLock:'Закрепляет камеру за плечом персонажа. Переключение — Shift.'
+};
+for(const [id,text]of Object.entries(russianHelp)){const node=document.getElementById(id);if(node)node.title=text;}
+
 function status(text:string,error=false){el('status').textContent=text;el('status').classList.toggle('error',error);}
 async function action(fn:()=>Promise<void>){if(busy)return;busy=true;try{await fn();}catch(error){const message=error instanceof Error?error.message:String(error);status(message.replace(/^Error invoking remote method '[^']+': (?:Error: )?/,''),true);}finally{busy=false;}}
 function settings(){return {...motionExtras(),solver:el<HTMLSelectElement>('physicsSolver').value,stiffness:1-Number(el<HTMLInputElement>('soft').value)/100,damping:Number(el<HTMLInputElement>('damp').value)/100,rotationLimit:Number(el<HTMLInputElement>('bendLimit').value),...Object.fromEntries(motionFields.map(([id,,min,max,,fallback])=>{const n=Number(el<HTMLInputElement>(id).value);return [id,Number.isFinite(n)?THREE.MathUtils.clamp(n,min,id==='elasticity'&&el<HTMLSelectElement>('physicsSolver').value==='v2-sync'?12:max):fallback];}))} as {motionMode:string;useGravity:boolean;ribbonWind:boolean;ribbonDirection:string;ribbonBones?:Record<string,string>;solver:string;stiffness:number;damping:number;rotationLimit:number;inertia:number;elasticity:number;windInfluence:number;windStrength:number;windSpeed:number;windAngle:number};}
@@ -162,7 +179,7 @@ let lockYaw=0,lockPitch=.25,lockDistance=12;
 function setFittingLock(value:boolean){
  fitting.shiftLock=value;controls.enabled=!value;
  renderer.domElement.style.cursor=value?'crosshair':'';
- el('fittingShiftLock').classList.toggle('active',value);el('fittingShiftLock').textContent=value?'Shift Lock включён · Shift':'Shift Lock · Shift';
+ el('fittingShiftLock').classList.toggle('active',value);el('fittingShiftLock').textContent=value?'Камера за плечом включён · Shift':'Камера за плечом · Shift';
  if(!value&&document.pointerLockElement===renderer.domElement)document.exitPointerLock();
 }
 async function toggleFittingLock(){
@@ -170,8 +187,7 @@ async function toggleFittingLock(){
  if(fitting.shiftLock){setFittingLock(false);return;}
  const offset=camera.position.clone().sub(controls.target);lockDistance=THREE.MathUtils.clamp(offset.length(),3,30);lockYaw=Math.atan2(offset.x,offset.z);lockPitch=Math.asin(THREE.MathUtils.clamp(offset.y/Math.max(offset.length(),.01),-.8,.8));
  renderer.domElement.focus();
- // Lock the camera immediately; cursor capture is optional (offscreen windows
- // and some desktop policies reject it). Hover rotation remains usable there.
+ // Закрепляем камеру сразу; захват курсора необязателен: внеэкранные окна и некоторые политики рабочего стола его запрещают. В этих случаях вращение при движении мыши остаётся доступным.
  setFittingLock(true);
  try{const request=renderer.domElement.requestPointerLock();request?.catch(()=>{});}catch{}
 }
@@ -197,23 +213,21 @@ function updateFitting(dt:number){
  const names:Record<string,string[]>={hat:['HatAttachment'],hair:['HairAttachment'],face:['FaceFrontAttachment','FaceCenterAttachment'],back:['BodyBackAttachment'],front:['BodyFrontAttachment'],waist:['WaistCenterAttachment','WaistBackAttachment','WaistFrontAttachment'],neck:['NeckAttachment'],shoulder:['RightShoulderAttachment','LeftShoulderAttachment','RightCollarAttachment','LeftCollarAttachment']};
  const attachment=(Array.isArray(imported?.attachments)?imported.attachments:[]).find((a:any)=>names[slot]?.includes(a.name)&&Array.isArray(a.frame)&&a.frame.length===12&&a.frame.every((n:unknown)=>typeof n==='number'&&Number.isFinite(n)&&Math.abs(n)<10000));
  const offset=['X','Y','Z'].map(axis=>{const n=Number(el<HTMLInputElement>('fitting'+axis).value);return Number.isFinite(n)?THREE.MathUtils.clamp(n,-20,20):0;});
- // body contains mesh translated by -center; compensate so the mesh's original
- // attachment frame, not its bounding-box centre, lands on the avatar mount.
+ // В body меш смещён на -center. Компенсируем сдвиг, чтобы с креплением аватара совпала исходная система координат крепления меша, а не центр его ограничивающего параллелепипеда.
  const world=fitting.mount(slot,attachment?.frame,offset).multiply(new THREE.Matrix4().makeTranslation(center.x,center.y,center.z));
  world.decompose(body.position,body.quaternion,body.scale);yaw=fitting.yaw;
 }
 
 function snapshot(){projectModified=true;history.push({physics:settings(),surfaceSelection:[...surfaceSelection],isolated:el<HTMLInputElement>('isolateWeights').checked,owners:[...owners],partNames:{...partNames},activeChain,creating,anchorSet,tipSet,mask:mask.slice(),bones:copyBones(bones),skin:skin?{skinIndices:[...skin.skinIndices],skinWeights:[...skin.skinWeights]}:null,anchor:anchor.toArray(),tip:tip.toArray(),selected});if(history.length>20)history.shift();}
 function confirmProjectReplacement(){
-  // Ask before IPC/downloads: an import also replaces the backend's source file.
-  // Keep protection after undo/export too; neither should silently discard work.
+  // Запрашиваем подтверждение до IPC и загрузок: импорт заменяет также исходный файл серверной части приложения. Защита сохраняется после отмены и экспорта, чтобы работа не пропадала молча.
   const hasWork=geometry&&(projectModified||bones.length>0||anchorSet||tipSet||mask.some(value=>value>0));
   return !hasWork||window.confirm('В текущем предмете есть изменения: кости, веса или настройки.\nЗагрузить другой предмет и потерять текущую работу?\n\nНажмите «Отмена», чтобы остаться и сначала сохранить предмет.');
 }
 function stop(){endFitting();revision++;running=false;physicsPending=0;el('simulate').textContent='Включить симуляцию';el('simulate').classList.remove('active');if(mesh&&bones.length){rebindRest(mesh,bones);needInit=true;}syncSelection();updateMarkers();}
 function clearMesh(){revision++;transform.detach();boneProxy.removeFromParent();if(selectionDots){selectionDots.geometry.dispose();(selectionDots.material as THREE.Material).dispose();selectionDots.removeFromParent();selectionDots=null;}if(mesh){body.remove(mesh);mesh.geometry.dispose();mesh.skeleton.dispose();mesh=null;}if(helper){scene.remove(helper);(helper.geometry).dispose();(helper.material as THREE.Material).dispose();helper=null;}}
 function project(){if(!geometry)throw new Error('Сначала загрузите аксессуар.');return {version:1,itemType:imported?.itemType,name:imported?.name,sourceHash:imported?.sourceHash,editor:{through:el<HTMLInputElement>('throughBrush').checked,radius:Number(el<HTMLInputElement>('radius').value),strength:Number(el<HTMLInputElement>('brushStrength').value),hardness:Number(el<HTMLInputElement>('brushHardness').value),target:Number(el<HTMLInputElement>('weight').value),gradientFrom:Number(el<HTMLInputElement>('gradientFrom').value),surfaceSelection:[...surfaceSelection],isolated:el<HTMLInputElement>('isolateWeights').checked},texture:imported?.texture,appearance:imported?.appearance,attachments:imported?.attachments,catalogType:imported?.catalogType,geometry,bones:copyBones(bones),owners:[...owners],partNames:{...partNames},activeChain,anchorSet,tipSet,skinIndices:skin?.skinIndices??[],skinWeights:skin?.skinWeights??[],mask:Array.from(mask),anchor:anchor.toArray(),tip:tip.toArray(),settings:settings(),meshAssetId:el<HTMLInputElement>('assetId').value.trim()};}
-// Display the same scalar values the skin builder exports, with a fixed palette.
+// Отображаем те же скалярные значения, которые экспортирует построитель весов, с фиксированной палитрой.
 function colors(){
  if(!mesh||!geometry||!graph)return;
  const inWeights=['paint','erase','part','gradient'].includes(mode)&&!running;
@@ -282,7 +296,7 @@ function setPosition(position:THREE.Vector3,remember=true){
     if(remember){stop();snapshot();}else revision++;
     if(next){bones=next;chainEndpoints();rebindRest(mesh!,bones);needInit=true;}
     else {(selected==='anchor'?anchor:tip).copy(position);if(selected==='anchor')anchorSet=true;else tipSet=true;}
-    // Updating bind inverses preserves every rest vertex; weights are untouched.
+    // Обновление обратных матриц привязки сохраняет все вершины исходной позы; веса не меняются.
     boneProxy.position.copy(selectedPosition());
     for(const [i,axis] of ['X','Y','Z'].entries())el<HTMLInputElement>('bone'+axis).value=String(Number(position.getComponent(i).toFixed(5)));
     status('Положение сохранено в rest-позе. Веса не изменены.');
@@ -307,7 +321,7 @@ async function load(result:any){
   if(!result.geometry){status(result.warnings.join(' '),true);el('empty').style.display='grid';el('empty').querySelector('h1')!.textContent='Нужен файл геометрии';el('empty').querySelector('p')!.textContent='Меш не удалось загрузить. Выберите его .mesh вручную.';el('demo').textContent='Выбрать .mesh';return;}
   geometry=result.geometry;showWorkspace(true);graph=surfaceGraph(geometry!);projection=new WeightProjection(geometry!);mask=new Float32Array(geometry!.positions.length/3);owners=Array(mask.length).fill('');yaw=0;motion.set(0,0,0);
   if(result.texture){texture=await new THREE.TextureLoader().loadAsync(result.texture);texture.colorSpace=THREE.SRGBColorSpace;texture.flipY=false;}
-  // Inverted-hull accessories rely on backface culling for their outlines.
+  // Аксессуары с вывернутой оболочкой используют отсечение обратных граней для построения контура.
   material=new THREE.MeshStandardMaterial({color:0xffffff,map:texture,roughness:.65,metalness:.04,side:result.appearance?.doubleSided?THREE.DoubleSide:THREE.FrontSide,vertexColors:true});
   const bounds=new THREE.Box3().setFromArray(geometry!.positions);bounds.getCenter(center);bounds.getSize(size);
   anchor.set(center.x,bounds.max.y,center.z);tip.set(center.x,bounds.min.y,center.z);
@@ -381,7 +395,7 @@ function hoverWeights(event:PointerEvent){
  const candidates=brushCandidates(event,null),b=renderer.domElement.getBoundingClientRect();
  if(hoverCanvas.width!==Math.round(b.width)||hoverCanvas.height!==Math.round(b.height)){hoverCanvas.width=Math.round(b.width);hoverCanvas.height=Math.round(b.height);}
  hoverContext.clearRect(0,0,hoverCanvas.width,hoverCanvas.height);
- // Hover points are projected independently of the GPU's interpolated heatmap.
+ // Точки под курсором проецируются независимо от интерполированной на GPU карты весов.
  hoverContext.fillStyle='#e9f4ff';
  if(el<HTMLInputElement>('previewVertices').checked)for(const [i] of candidates){const p=projection!.point(i);if(!p)continue;hoverContext.beginPath();hoverContext.arc(p.x,p.y,2,0,Math.PI*2);hoverContext.fill();}
  el('brushCursor').classList.toggle('inactive',candidates.size===0);
@@ -405,7 +419,7 @@ function placeEndpoint(event:PointerEvent){
   }catch(error){status((error as Error).message,true);}
 }
 function finishStroke(){gradientDrag=null;flushBrush();pendingHover=null;weightStroke=null;lastDab=null;hoverContext.clearRect(0,0,hoverCanvas.width,hoverCanvas.height);dragging=false;strokePart=null;dragPlane=null;dragPoint=null;controls.enabled=!transform.dragging&&!fitting.shiftLock;}
-// Capture marker selection before TransformControls consumes an overlapping axis.
+// Перехватываем выбор маркера до того, как TransformControls обработает перекрывающую его ось.
 renderer.domElement.addEventListener('pointerdown',event=>{
   if(event.button!==0||!geometry||geometry.rigged||running||mode!=='bone'||transform.dragging)return;
   mesh?.updateWorldMatrix(true,true);updateMarkers();setRay(event);
@@ -523,7 +537,7 @@ insertPointButton.onclick=()=>{
   try{
     finishStroke();const path=activePath();
     const point=typeof selected==='number'?selected:path[0];
-    // Selected point denotes the following edge; the tip denotes its last edge.
+    // Выбранная точка обозначает следующее ребро, а конец цепочки — последнее ребро.
     const at=path.indexOf(point),child=path[Math.min(Math.max(at,0)+1,path.length-1)];
     const result=insertRestPoint(geometry,bones,child,mask,owners,skin);
     stop();snapshot();bones=result.bones;skin=result.skin;selected=result.selected;
@@ -534,7 +548,7 @@ insertPointButton.onclick=()=>{
 };
 el('panelWeights').prepend(autoWeightsButton);
 function applyAutomaticWeights(confirmReplacement=true){
- if(!geometry||geometry.rigged)throw new Error('Load an editable accessory first');
+ if(!geometry||geometry.rigged)throw new Error('Сначала откройте аксессуар, доступный для редактирования.');
  finishStroke();const result=automaticWeights(geometry,bones,Number(el<HTMLInputElement>('weight').value)/100);
  if(confirmReplacement&&mask.some(n=>n>0)&&!window.confirm('Заменить текущую покраску автовесами? Изменение можно отменить.'))return;
  stop();snapshot();mask=result.mask;owners=result.owners;skin=result.skin;rebuild();status('Автовеса готовы.');
@@ -613,7 +627,7 @@ if(window.workshop?.testMode)window.workshopInspect=()=>{
 
 el<HTMLInputElement>('bendLimit').oninput=()=>{if(geometry)projectModified=true;el('bendLimitValue').textContent=el<HTMLInputElement>('bendLimit').value+'°';};
 
-// Use the existing exported wind attributes; never animate the mesh separately.
+// Используем существующие экспортируемые атрибуты ветра; меш отдельно не анимируем.
 el<HTMLInputElement>('softWind').onchange=()=>{
  if(geometry)snapshot();
  const enabled=el<HTMLInputElement>('softWind').checked;
@@ -653,7 +667,7 @@ el<HTMLSelectElement>('physicsSolver').onchange=()=>{
 
 
 
-// Wave controls edit the selected part in one action; storage stays per bone.
+// Элементы волны изменяют выбранную часть одним действием; данные по-прежнему хранятся для каждой кости.
 ribbonUi.className='bone-wave-settings';
 for(const parent of [windUi,capeUi,ribbonUi])for(const box of Array.from(parent.querySelectorAll('input[type=checkbox]')))box.parentElement!.classList.add('toggle');
 function refreshRibbonSelection(){
@@ -668,7 +682,7 @@ function refreshRibbonSelection(){
 function editRibbon(){
  const targets=activePath();if(creating||!targets.length)return;
  snapshot();
- // First local edit migrates an old whole-item wave without disabling other bones.
+ // Первое локальное изменение переносит старую волну всего предмета, не отключая остальные кости.
  if(ribbonBones===null){ribbonBones={};if(legacyWave)for(const b of bones.slice(1))ribbonBones[b.name]=legacyWave;}
  for(const i of targets){if(el<HTMLInputElement>('ribbonWind').checked)ribbonBones[bones[i].name]=el<HTMLSelectElement>('ribbonDirection').value;else delete ribbonBones[bones[i].name];}
  revision++;projectModified=true;refreshRibbonSelection();
@@ -677,7 +691,7 @@ el('ribbonWind').addEventListener('change',()=>editRibbon());
 el('ribbonDirection').addEventListener('change',()=>editRibbon());
 
 
-// Electron's main process owns the confirmation for every window-close route.
+// Подтверждением всех способов закрытия окна управляет главный процесс Electron.
 window.addEventListener('beforeunload',event=>{
  finishStroke();
  if(geometry&&projectModified){event.preventDefault();event.returnValue='';}

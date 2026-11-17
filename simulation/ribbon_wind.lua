@@ -1,5 +1,4 @@
--- Workshop-only experiment. Apply a travelling transverse force before V1's
--- existing constraints, never replace the solved pose or move the real handle.
+-- Эксперимент только для Workshop. Добавляем бегущую поперечную силу перед существующими ограничениями V1, не заменяя рассчитанную позу и не двигая настоящий Handle.
 return function(solver)
     local new,update=solver.new,solver.UpdateParticles
     function solver.new(part,roots)
@@ -14,8 +13,7 @@ return function(solver)
         update(self,tree,delta,index)
         self.Settings.WindInfluence=influence
         if not enabled then tree.RibbonTime=0;return end
-        -- V1 passes elapsed seconds multiplied by ten. This clock therefore
-        -- follows fixed simulation ticks and is independent of rendering FPS.
+        -- V1 передаёт прошедшие секунды, умноженные на десять. Этот таймер следует фиксированным шагам симуляции и не зависит от частоты отрисовки.
         tree.RibbonTime=(tree.RibbonTime or 0)+delta/10
         local t=tree.RibbonTime
         local frame=self.RibbonSource.CFrame

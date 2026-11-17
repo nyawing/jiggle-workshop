@@ -71,7 +71,7 @@ test('source half uses root then mean, supports all axes and offset planes',()=>
     f.bones[1].position[axis]=4;
     assert.equal(run(f,axis,4).matched,2);
     f.bones[2].position[axis]=4;
-    assert.throws(()=>run(f,axis,4),/plane/);
+    assert.throws(()=>run(f,axis,4),/плоскости отражения/);
   }
 });
 
@@ -96,4 +96,4 @@ test('100k seam vertices are bounded and do not produce quadratic duplicate scan
   f.geometry.positions.push(0,0,0); assert.throws(()=>run(f));
 });
 
-test('rejects a wrong mirror axis when chains are on the same side',()=>{const f=fixture();f.bones[3].position[0]=-.5;f.bones[4].position[0]=-.5;assert.throws(()=>run(f),/opposite side/);});
+test('rejects a wrong mirror axis when chains are on the same side',()=>{const f=fixture();f.bones[3].position[0]=-.5;f.bones[4].position[0]=-.5;assert.throws(()=>run(f),/по другую сторону/);});

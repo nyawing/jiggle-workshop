@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp,writeFile,mkdir} from 'node:fs/promises';
 import os from 'node:os';import path from 'node:path';import * as THREE from 'three';
 const root=process.cwd(),dir=await mkdtemp(path.join(os.tmpdir(),'workshop-gradient-'));
-// Two overlapping shells and a disconnected neighbor: scope and depth must be explicit.
+// Две перекрывающиеся оболочки и отдельный сосед: область действия и глубина должны задаваться явно.
 const positions=[],indices=[];for(const [x,z] of [[0,0],[0,-.02],[4,0]]){const i=positions.length/3;positions.push(x-.3,-1,z,x+.3,-1,z,x+.3,1,z,x-.3,1,z);indices.push(i,i+1,i+2,i,i+2,i+3);}
 const fixture={version:1,name:'Gradient fixture',geometry:{positions,normals:Array.from({length:36},(_,i)=>i%3===2?1:0),uv:Array(24).fill(0),indices,rigged:false},bones:[],skinIndices:[],skinWeights:[],mask:Array(12).fill(0),owners:Array(12).fill(''),partNames:{},anchor:[0,1,0],tip:[0,-1,0],settings:{stiffness:.4,damping:.18},appearance:{doubleSided:false}};
 const file=path.join(dir,'fixture.jiggle.json');await writeFile(file,JSON.stringify(fixture));

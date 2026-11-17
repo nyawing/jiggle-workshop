@@ -1,8 +1,7 @@
 import * as THREE from 'three';
 import type {GeometryData} from './model';
 export type SurfaceGraph={points:THREE.Vector3[];vertices:number[][];nodes:number[];edges:Map<number,number>[];components:number[]};
-// Weld identical positions across UV/normal seams, never nearby disconnected
-// surfaces. Brush distance follows triangle edges instead of a spatial sphere.
+// Склеиваем совпадающие вершины на швах UV и нормалей, но не соседние несвязанные поверхности. Расстояние кисти измеряется по рёбрам треугольников, а не внутри пространственной сферы.
 export function surfaceGraph(geometry:GeometryData):SurfaceGraph{
   const points:THREE.Vector3[]=[],vertices:number[][]=[],nodes:number[]=[],lookup=new Map<string,number>();
   for(let i=0;i<geometry.positions.length/3;i++){
