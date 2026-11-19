@@ -24,7 +24,7 @@ try{
  await page.waitForFunction(()=>document.querySelector('#status')?.textContent.startsWith('Проект восстановлен.'));
  await page.locator('#tabCheck').click();assert.equal(await page.locator('#physicsSolver').inputValue(),'v1-sync','old V1 projects use the updated V1 clock');assert.equal(await page.locator('#physicsSolver').isVisible(),false);await page.locator('#tryOn').check();
  await page.waitForFunction(()=>window.workshopInspect().running&&window.workshopInspect().fitting.enabled);
- assert.equal(await page.locator('#fittingSlot').inputValue(),'back');
+ assert.equal(await page.locator('#fittingSlot, #fittingX, #fittingY, #fittingZ').count(),0);
  const before=await page.evaluate(()=>window.workshopInspect());
  const canvas=page.locator('canvas[data-engine]');await canvas.focus();await page.keyboard.down('w');await page.waitForTimeout(400);await page.keyboard.up('w');
  const moved=await page.evaluate(()=>window.workshopInspect());assert(Math.hypot(moved.fitting.position[0],moved.fitting.position[2])>1);
@@ -37,7 +37,15 @@ try{
  await page.evaluate(()=>document.querySelector('canvas[data-engine]').dispatchEvent(new MouseEvent('mousemove',{bubbles:true,movementX:90,movementY:0})));
  await page.waitForTimeout(80);assert(Math.abs((await page.evaluate(()=>window.workshopInspect())).fitting.yaw-lockedYaw)>.1);
  await page.keyboard.press('Shift');await page.waitForFunction(()=>!window.workshopInspect().fitting.shiftLock);
- assert.equal(await page.locator('#physicsAdvanced').isVisible(),false);assert.equal(await page.locator('#hatTestPreset').count(),0);await page.locator('#softWind').check();assert.equal((await page.evaluate(()=>window.workshopInspect())).project.settings.windInfluence,.15);await page.locator('#softWind').uncheck();assert.equal((await page.evaluate(()=>window.workshopInspect())).project.settings.windInfluence,0);await page.locator('#physicsAdvanced').evaluate(n=>{n.hidden=false;n.open=true;});
+ if(process.env.WORKSHOP_FITTING_ONLY==='1'){
+  await page.locator('#tryOn').uncheck();
+  const end=await page.evaluate(()=>window.workshopInspect());
+  assert(!end.fitting.enabled&&!end.running);
+  assert.deepEqual(end.project.attachments,project.attachments);
+  assert.deepEqual(errors,[]);
+  console.log('PASS fitting controls, unchanged attachment, movement, jump and Shift toggle');
+ }else{
+ assert.equal(await page.locator('#physicsAdvanced').isVisible(),false);assert.equal(await page.locator('#hatTestPreset').count(),0);assert.equal(await page.locator('#softWind').isVisible(),false);await page.locator('#physicsAdvanced').evaluate(n=>{n.hidden=false;n.open=true;});
  await page.locator('#inertia').fill('0.85');await page.locator('#elasticity').fill('0.4');await page.locator('#windInfluence').fill('0.6');
  await page.waitForTimeout(300);
  const tuned=await page.evaluate(()=>window.workshopInspect());assert(tuned.running);assert.equal(tuned.project.settings.solver,'v1-sync');assert.equal(tuned.project.settings.inertia,.85);assert.equal(tuned.project.settings.windInfluence,.6);
@@ -45,7 +53,7 @@ try{
  assert(tuned.worldVertices.flat().every(Number.isFinite));assert(!await page.locator('#status').evaluate(n=>n.classList.contains('error')),await page.locator('#status').textContent());
  const out=path.resolve(root,'../../_work/smartbone-owner-lab/workshop');await mkdir(out,{recursive:true});await page.screenshot({path:path.join(out,'cape-fitting.png')});
  await page.locator('#tryOn').uncheck();const end=await page.evaluate(()=>window.workshopInspect());assert(!end.fitting.enabled&&!end.running);assert.deepEqual(end.motion,before.motion);assert.deepEqual(end.cameraTarget,[0,0,0]);
- await page.locator('#motionMode').selectOption('cape');await page.locator('#useGravity').uncheck();
+ await page.locator('#motionMode').selectOption('cape');await page.locator('#useGravity').evaluate(n=>{n.checked=false;n.dispatchEvent(new Event('change'));});
  await app.evaluate(({dialog},file)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:file});},path.join(dir,'saved.jiggle.json'));
  await page.locator('#save').evaluate(n=>n.click());await page.waitForFunction(()=>document.querySelector('#status')?.textContent.startsWith('Проект сохранён:'));
  const saved=JSON.parse(await readFile(path.join(dir,'saved.jiggle.json'),'utf8'));assert.equal(saved.settings.solver,'v1-sync');assert.equal(saved.settings.inertia,.85);assert.equal(saved.settings.windInfluence,.6);assert.deepEqual(saved.attachments,project.attachments);
@@ -74,5 +82,6 @@ try{
  }
  await page.screenshot({path:path.join(out,'ribbon-wind.png')});
  assert.deepEqual(errors,[]);console.log('PASS fitting, keyboard/jump, wind toggle, stationary ribbon, unchanged rig/skin, restore and saved settings');
+ }
 }finally{await app.close();}
 
