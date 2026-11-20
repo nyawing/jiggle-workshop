@@ -15,14 +15,14 @@ import {automaticWeights,insertRestPoint,mirrorChain} from './model';
 
 const app=document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML=`<header><strong>Jiggle Workshop</strong><form id="remote"><input id="reference" aria-label="Ссылка или ID предмета" placeholder="Ссылка на предмет или ID" maxlength="2048" required><button id="download" type="submit">Загрузить</button></form><button id="open">Открыть файл</button><button id="save">Сохранить проект</button><button id="exportMenu">Экспорт</button></header>
-<main><section id="stage"><div id="empty"><h1>Откройте аксессуар</h1><p>Ссылка / ID сверху или файл RBXM, RBXMX, .jiggle.json.</p><button id="demo">Учебный пример</button></div><div id="brushCursor"></div><div id="label">Ничего не загружено</div><div id="hint">Правая кнопка — камера · колёсико — вращение предмета</div></section>
+<main><section id="stage"><div id="empty"><h1>Откройте аксессуар</h1><p>Введите ссылку на аксессуар или откройте проект (.jiggle.json или ZIP).</p><button id="demo">Учебный пример</button></div><div id="brushCursor"></div><div id="label">Ничего не загружено</div><div id="hint">Правая кнопка — камера · колёсико — вращение предмета</div></section>
 <aside><nav class="tabs"><button id="tabBones">Кости</button><button id="tabWeights">Веса</button><button id="tabCheck">Проверка</button></nav>
 <label id="chainPicker">Часть предмета<select id="chainSelect"><option value="">Новая часть</option></select></label>
 <section id="panelBones"><button id="chain" class="wide">Добавить кость: начало → конец</button><p class="help">Два клика — одна кость для отдельной части.</p><div class="pair"><button id="selectBone">Выбрать / двигать</button><button id="deleteBone" disabled>Удалить (Delete)</button></div>
 <details id="boneAdvanced"><summary>Точки и дополнительные звенья</summary><label>Название части<input id="chainName" maxlength="60" placeholder="Например, левый колокольчик"></label><div class="pair"><button id="anchor">Начало</button><button id="tip">Конец</button></div><label>Точка / кость<select id="boneSelect"><option value="anchor">Крепление</option><option value="tip">Конец</option></select></label><div class="coordinates"><label>X<input id="boneX" type="number" step="0.01"></label><label>Y<input id="boneY" type="number" step="0.01"></label><label>Z<input id="boneZ" type="number" step="0.01"></label></div><div class="pair"><button id="applyPosition">Применить XYZ</button><button id="centerBone">В центр меша</button></div><button id="place" class="wide">Поставить в плоскости вида</button><p class="help">Стрелки / XYZ — оси предмета. Клик в плоскости вида сохраняет глубину точки.</p><label>Число звеньев<input id="segments" type="number" min="1" max="24" step="1" value="1"></label><button id="applySegments" class="wide">Применить число звеньев</button></details></section>
 <section id="panelWeights" hidden><div class="pair"><button id="paint" class="selected">Кисть</button><button id="erase">Стереть</button></div><label>Вес <output id="weightValue">100%</output><input id="weight" type="range" min="0" max="100" value="100"></label><label>Размер кисти<input id="radius" type="range" min="8" max="90" value="28"></label><p class="help">Кисть задаёт вес выбранной части. 100% — сильное движение, 20% — слабое, 0% — неподвижно. Контрастный вид: красный — сильный вес, синий — неподвижно; фиолетовый — другие цепочки.</p><details id="brushAdvanced"><summary>Ограничение кисти</summary><div class="pair"><button id="part">Выбрать поверхность</button><button id="unlockPart">Все поверхности</button></div><p id="partHint" class="help">Мазок остаётся на поверхности, где начат.</p><button id="all" class="wide">Привязать весь меш к этой части</button></details></section>
 <section id="panelCheck" hidden><button id="simulate" class="wide" disabled>Включить симуляцию</button><button id="reset" class="wide">Сбросить положение</button><p class="help">Тяни предмет левой кнопкой. Сброс сохраняет кости и веса.</p><details id="physicsAdvanced" hidden><summary>Параметры движения</summary><label>Характер<select id="preset"><option value="hair">Волосы</option><option value="ears">Уши</option><option value="tail">Хвост</option><option value="pendant">Подвеска</option></select></label><label>Мягкость <output id="softValue">60%</output><input id="soft" type="range" min="0" max="100" value="60"></label><label>Затухание <output id="dampValue">18%</output><input id="damp" type="range" min="0" max="100" value="18"></label><label>Предел изгиба <output id="bendLimitValue">180°</output><input id="bendLimit" type="range" min="0" max="180" value="180"></label></details></section><button id="undo" class="wide">Отменить · Ctrl+Z</button></aside>
-<dialog id="exportDialog"><div class="dialogTitle"><strong>Экспорт</strong><button id="closeExport">Закрыть</button></div><button id="saveMesh" class="wide">Сохранить .mesh</button><details id="advanced"><summary>Экспорт аксессуара RBXM</summary><p class="help">Загрузите сохранённый .mesh как ассет и укажите новый ID.</p><label>ID нового меша<input id="assetId" placeholder="После загрузки .mesh" inputmode="numeric"></label><button id="export" class="wide">Экспорт RBXM + mesh</button></details></dialog></main><footer><span id="status">Откройте аксессуар или учебный пример.</span><span>0.5.6 · V1 синхронный</span></footer>`;
+<dialog id="exportDialog"><div class="dialogTitle"><strong>Экспорт</strong><button id="closeExport">Закрыть</button></div><button id="saveMesh" class="wide">Сохранить .mesh</button><details id="advanced"><summary>Экспорт аксессуара RBXM</summary><p class="help">Загрузите сохранённый .mesh как ассет и укажите новый ID.</p><label>ID нового меша<input id="assetId" placeholder="После загрузки .mesh" inputmode="numeric"></label><button id="export" class="wide">Экспорт RBXM + mesh</button></details></dialog></main><footer><span id="status">Откройте аксессуар или учебный пример.</span><span>0.5.7 · V1 синхронный</span></footer>`;
 const el=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T;
 window.workshop?.onImportStatus?.(message=>status(message));
 const workspace=document.querySelector('main')!;
@@ -34,13 +34,13 @@ el('save').hidden=true;
 el<HTMLInputElement>('reference').placeholder='Полная ссылка на предмет Roblox или Nyawing';
 el('reference').setAttribute('aria-label','Полная ссылка на предмет Roblox или Nyawing');
 el('exportMenu').textContent='Сохранить';
-el('open').hidden=true;
+el('open').hidden=!window.workshop;
+el('open').textContent='Открыть проект';
 for(const id of ['open','exportMenu'])fileActions.append(el(id));
 document.querySelector('header')!.append(fileActions);
 fileActions.style.borderLeft='0';fileActions.style.paddingLeft='0';
 el('saveMesh').hidden=true;el('advanced').hidden=true;
 document.querySelector('#empty h1')!.textContent='Загрузите аксессуар';
-document.querySelector('#empty p')!.textContent='Вставьте полную ссылку на предмет Roblox или Nyawing в поле сверху и нажмите «Загрузить».';
 // Обычное редактирование оставляем компактным; точное позиционирование доступно по запросу.
 el('undo').remove();
 el('brushAdvanced').querySelector('summary')!.textContent='Дополнительно';
@@ -73,7 +73,7 @@ const fittingUi=document.createElement('div');fittingUi.id='fittingControls';
 fittingUi.innerHTML=`<label class="toggle"><input id="tryOn" type="checkbox">Примерить на персонажа</label>
 <div id="fittingOptions" hidden>
 <button id="fittingHome" class="wide">Вернуть персонажа на старт</button>
-<button id="fittingShiftLock" class="wide">Камера за плечом · Shift</button></div>`;
+<button id="fittingShiftLock" class="wide" aria-pressed="false">Shift Lock</button></div>`;
 el('simulate').after(fittingUi);
 const solverLabel=document.createElement('label');solverLabel.hidden=true;solverLabel.innerHTML='Физика<select id="physicsSolver"><option value="v1-sync">V1 · синхронизация (как в игре)</option><option value="legacy">V1 · без синхронизации</option><option value="v2-sync" hidden>Архивный проект V2</option></select>';fittingUi.before(solverLabel);
 const solverNote=document.createElement('p');solverNote.id='solverNote';solverNote.style.display='none';solverNote.textContent='V2: примерка и сохранение проекта. Экспорт этой физики — после обновления игровой системы физики.';solverLabel.after(solverNote);
@@ -164,7 +164,7 @@ const russianHelp:Record<string,string>={
  brushHardness:'Жёсткость края кисти: мягкий край даёт более плавный переход.',
  weight:'Определяет, насколько сильно вершины следуют за выбранной цепочкой.',
  bendLimit:'Ограничивает допустимый угол изгиба.',
- fittingShiftLock:'Закрепляет камеру за плечом персонажа. Переключение — Shift.'
+ fittingShiftLock:'Переключение клавишей Shift.'
 };
 for(const [id,text]of Object.entries(russianHelp)){const node=document.getElementById(id);if(node)node.title=text;}
 
@@ -176,7 +176,7 @@ let lockYaw=0,lockPitch=.25,lockDistance=12;
 function setFittingLock(value:boolean){
  fitting.shiftLock=value;controls.enabled=!value;
  renderer.domElement.style.cursor=value?'crosshair':'';
- el('fittingShiftLock').classList.toggle('active',value);el('fittingShiftLock').textContent=value?'Камера за плечом включён · Shift':'Камера за плечом · Shift';
+ el('fittingShiftLock').classList.toggle('active',value);el('fittingShiftLock').setAttribute('aria-pressed',String(value));
  if(!value&&document.pointerLockElement===renderer.domElement)document.exitPointerLock();
 }
 async function toggleFittingLock(){
@@ -208,10 +208,9 @@ function updateFitting(dt:number){
  }
  const category=imported?.catalogType??imported?.savedProject?.catalogType;
  const slot=['hat','hair','face','back','front','waist','neck','shoulder'].includes(category)?category:category==='face_accessory'?'face':'hat';
- const names:Record<string,string[]>={hat:['HatAttachment'],hair:['HairAttachment'],face:['FaceFrontAttachment','FaceCenterAttachment'],back:['BodyBackAttachment'],front:['BodyFrontAttachment'],waist:['WaistCenterAttachment','WaistBackAttachment','WaistFrontAttachment'],neck:['NeckAttachment'],shoulder:['RightShoulderAttachment','LeftShoulderAttachment','RightCollarAttachment','LeftCollarAttachment']};
- const attachment=(Array.isArray(imported?.attachments)?imported.attachments:[]).find((a:any)=>names[slot]?.includes(a.name)&&Array.isArray(a.frame)&&a.frame.length===12&&a.frame.every((n:unknown)=>typeof n==='number'&&Number.isFinite(n)&&Math.abs(n)<10000));
+ const attachments=Array.isArray(imported?.attachments)?imported.attachments:[];
  // В body меш смещён на -center. Компенсируем сдвиг, чтобы с креплением аватара совпала исходная система координат крепления меша, а не центр его ограничивающего параллелепипеда.
- const world=fitting.mount(slot,attachment?.frame).multiply(new THREE.Matrix4().makeTranslation(center.x,center.y,center.z));
+ const world=fitting.mount(slot,attachments).multiply(new THREE.Matrix4().makeTranslation(center.x,center.y,center.z));
  world.decompose(body.position,body.quaternion,body.scale);yaw=fitting.yaw;
 }
 
@@ -306,13 +305,20 @@ function updateMarkers(){
   if(helper&&mesh){const positions=helper.geometry.getAttribute('position') as THREE.BufferAttribute;for(const [k,i] of helperEdges.entries()){const a=mesh.skeleton.bones[bones[i].parent].getWorldPosition(new THREE.Vector3()),b=mesh.skeleton.bones[i].getWorldPosition(new THREE.Vector3());positions.setXYZ(k*2,a.x,a.y,a.z);positions.setXYZ(k*2+1,b.x,b.y,b.z);}positions.needsUpdate=true;}
   for(const marker of boneMarkers.children){const value=marker.userData.selection;if(typeof value==='number'&&mesh)mesh.skeleton.bones[value].getWorldPosition(marker.position);else if(mesh)marker.position.copy(mesh.localToWorld((value==='anchor'?anchor:tip).clone()));}
 }
+function fittingItemTitle(name:string){
+ const title=name.trim();
+ const wrapped=/^Accessory\s*\((.+)\)$/i.exec(title);
+ if(!wrapped)return title;
+ const inner=wrapped[1].trim();
+ return inner.replace(/Accessory$/i,'').trim()||inner;
+}
 async function load(result:any){
   projectModified=false;
   el<HTMLInputElement>('bendLimit').value='180';el('bendLimitValue').textContent='180°';
   endFitting();restoreMotionExtras(result.savedProject?.settings);el<HTMLSelectElement>('physicsSolver').value=result.savedProject?(result.savedProject.settings?.solver==='v2-sync'?'v2-sync':'v1-sync'):'v1-sync';el<HTMLInputElement>('elasticity').max=el<HTMLSelectElement>('physicsSolver').value==='v2-sync'?'12':'1';el('solverNote').hidden=el<HTMLSelectElement>('physicsSolver').value!=='v2-sync';for(const [id,,,,,value]of motionFields)el<HTMLInputElement>(id).value=String(result.savedProject?.settings?.[id]??value);el<HTMLInputElement>('softWind').checked=Number(el<HTMLInputElement>('windInfluence').value)>0;
   showWorkspace(false);
   stop();clearMesh();geometry=null;bones=[];owners=[];partNames={};activeChain='';creating=false;skin=null;selected='anchor';history=[];anchorSet=false;tipSet=false;graph=null;lockedPart=null;strokePart=null;mode='paint';heatmapPreference=false;el<HTMLInputElement>('weightHeatmap').checked=false;el<HTMLInputElement>('throughBrush').checked=false;surfaceSelection.clear();projection=null;el<HTMLInputElement>('isolateWeights').checked=false;for(const [id,n] of [['radius',28],['brushStrength',100],['brushHardness',65],['weight',100],['gradientFrom',0]] as const)el<HTMLInputElement>(id).value=String(n);el<HTMLInputElement>('allWeightOverview').checked=false;imported=result;texture?.dispose();texture=null;material?.dispose();
-  el('label').textContent=result.name+' · '+(result.itemType==='hair'?'Волосы':'Аксессуар');el('partHint').textContent='Мазок остаётся на той части, где начат.';el<HTMLInputElement>('segments').value='1';el<HTMLSelectElement>('preset').value=result.itemType==='hair'?'hair':'pendant';el<HTMLSelectElement>('preset').dispatchEvent(new Event('change'));el('empty').style.display='none';boneMarkers.visible=false;el<HTMLInputElement>('assetId').value='';
+  el('label').textContent=fittingItemTitle(result.name);el('partHint').textContent='Мазок остаётся на той части, где начат.';el<HTMLInputElement>('segments').value='1';el<HTMLSelectElement>('preset').value=result.itemType==='hair'?'hair':'pendant';el<HTMLSelectElement>('preset').dispatchEvent(new Event('change'));el('empty').style.display='none';boneMarkers.visible=false;el<HTMLInputElement>('assetId').value='';
   if(!result.geometry){status(result.warnings.join(' '),true);el('empty').style.display='grid';el('empty').querySelector('h1')!.textContent='Нужен файл геометрии';el('empty').querySelector('p')!.textContent='Меш не удалось загрузить. Выберите его .mesh вручную.';el('demo').textContent='Выбрать .mesh';return;}
   geometry=result.geometry;showWorkspace(true);graph=surfaceGraph(geometry!);projection=new WeightProjection(geometry!);mask=new Float32Array(geometry!.positions.length/3);owners=Array(mask.length).fill('');yaw=0;motion.set(0,0,0);
   if(result.texture){texture=await new THREE.TextureLoader().loadAsync(result.texture);texture.colorSpace=THREE.SRGBColorSpace;texture.flipY=false;}

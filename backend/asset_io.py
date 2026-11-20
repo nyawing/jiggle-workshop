@@ -21,6 +21,8 @@ from pathlib import Path
 APP = Path(sys._MEIPASS) if getattr(sys,'frozen',False) else Path(__file__).resolve().parents[1]
 REPO = APP.parents[1]
 LIMIT = 24 * 1024 * 1024
+PROJECT_LIMIT = 64_000_000
+PROJECT_ARCHIVE_LIMIT = PROJECT_LIMIT + 2 * LIMIT
 # ID записей каталога Nyawing и ID ассетов принадлежат разным пространствам имён. Это соответствует ELYSIA_ASSET_ALIAS_BASE; фиксированный сервер выдачи разрешает псевдонимы на своей стороне.
 CATALOG_ALIAS_BASE = 2100000000
 MAX_CATALOG_ID = 2147483647 - CATALOG_ALIAS_BASE
@@ -649,10 +651,34 @@ def export_asset(source,path,project):
     return {'path':str(path),'meshAssetId':mesh_id}
 
 
+def read_project_archive(path, output):
+    if Path(path).stat().st_size > PROJECT_ARCHIVE_LIMIT:
+        raise ValueError('Архив проекта слишком большой.')
+    try:
+        with zipfile.ZipFile(path) as archive:
+            projects = [entry for entry in archive.infolist() if entry.filename == 'accessory.jiggle.json']
+            if len(projects) != 1:
+                raise ValueError('Выберите ZIP, экспортированный из Jiggle Workshop.')
+            project = projects[0]
+            if project.file_size > PROJECT_LIMIT:
+                raise ValueError('Проект слишком большой.')
+            # Читаем только сохранённый проект. Модель и меш в ZIP нужны для публикации.
+            with archive.open(project) as stream:
+                data = stream.read(PROJECT_LIMIT + 1)
+            if len(data) > PROJECT_LIMIT:
+                raise ValueError('Проект слишком большой.')
+    except (zipfile.BadZipFile, RuntimeError, NotImplementedError) as error:
+        raise ValueError('Не удалось прочитать ZIP проекта Jiggle Workshop.') from error
+    with Path(output).open('xb') as target:
+        target.write(data)
+    return {'ok': True}
+
+
 def main():
     # Electron передаёт JSON в UTF-8 через stdin. Системная кодировка Windows исказила бы кириллицу в путях ещё до передачи в pathlib.
     command=sys.argv[1];payload=json.loads(sys.stdin.buffer.read().decode('utf-8'))
     if command=='import': result=import_asset(payload['path'])
+    elif command=='read-project-archive': result=read_project_archive(payload['path'],payload['output'])
     elif command=='import-reference': result=import_reference(payload['reference'])
     elif command=='mesh': result=parse_mesh(bounded_file(payload['path']))
     elif command=='export': result=export_asset(payload['source'],payload['path'],payload['project'])

@@ -54,6 +54,21 @@ class Tests(unittest.TestCase):
             io.export_asset(APP/'tests/fixture.rbxm',target,p)
             with zipfile.ZipFile(target) as archive:
                 self.assertIn('accessory.rbxm',archive.namelist())
+            reopened=Path(temp)/'project.json'
+            io.read_project_archive(target,reopened)
+            saved=io.json.loads(reopened.read_bytes())
+            self.assertEqual(io.base64.b64decode(saved.pop('sourceBase64')),(APP/'tests/fixture.rbxm').read_bytes())
+            self.assertEqual(saved,p)
+
+    def test_zip_without_workshop_project_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            archive=Path(temp)/'other.zip'
+            output=Path(temp)/'project.json'
+            with zipfile.ZipFile(archive,'w') as package:
+                package.writestr('../accessory.jiggle.json','{}')
+            with self.assertRaisesRegex(ValueError,'Jiggle Workshop'):
+                io.read_project_archive(archive,output)
+            self.assertFalse(output.exists())
 
     def test_v2_project_settings_are_preserved_but_not_silently_exported_as_legacy(self):
         self.assertEqual(io.validate_motion_settings({'solver':'v2-sync','elasticity':6})['elasticity'],6)

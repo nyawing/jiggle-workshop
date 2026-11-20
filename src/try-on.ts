@@ -2,8 +2,16 @@ import * as THREE from 'three';
 import stockData from './generated/fitting-r6.json';
 
 type Frame={time:number;poses:Record<string,number[]>};
+type AccessoryAttachment={name:string;frame:number[]};
 type Stock={meshes:Record<string,{positions:number[];normals:number[];uv:number[];indices:number[]}>;joints:{name:string;parent:string;child:string;c0:number[];c1:number[]}[];attachments:Record<string,{part:string;frame:number[]}>;animations:Record<string,Frame[]>};
 const stock=stockData as Stock;
+const walkSpeed=16;
+const slotAttachments:Record<string,string[]>={
+  hat:['HatAttachment'],hair:['HairAttachment'],face:['FaceFrontAttachment','FaceCenterAttachment'],
+  back:['BodyBackAttachment'],front:['BodyFrontAttachment'],
+  waist:['WaistCenterAttachment','WaistBackAttachment','WaistFrontAttachment'],
+  neck:['NeckAttachment'],shoulder:['RightShoulderAttachment','LeftShoulderAttachment','RightCollarAttachment','LeftCollarAttachment'],
+};
 function matrix(a:number[]){return new THREE.Matrix4().set(a[3],a[4],a[5],a[0],a[6],a[7],a[8],a[1],a[9],a[10],a[11],a[2],0,0,0,1);}
 function interpolate(a:THREE.Matrix4,b:THREE.Matrix4,t:number){
  const pa=new THREE.Vector3(),pb=new THREE.Vector3(),qa=new THREE.Quaternion(),qb=new THREE.Quaternion(),scale=new THREE.Vector3();
@@ -42,20 +50,23 @@ export class TryOn {
     const x=Number(this.keys.has('KeyD'))-Number(this.keys.has('KeyA'));
     const z=Number(this.keys.has('KeyS'))-Number(this.keys.has('KeyW'));
     const direction=new THREE.Vector3(x,0,z).applyAxisAngle(new THREE.Vector3(0,1,0),cameraYaw);
-    this.moving=direction.lengthSq()>0;
-    if(this.moving){direction.normalize();this.position.addScaledVector(direction,dt*16);const goal=Math.atan2(-direction.x,-direction.z),angle=Math.atan2(Math.sin(goal-this.yaw),Math.cos(goal-this.yaw));this.yaw+=THREE.MathUtils.clamp(angle,-dt*10,dt*10);}
+    const previousX=this.position.x,previousZ=this.position.z;
+    if(direction.lengthSq()>0){direction.normalize();this.position.addScaledVector(direction,dt*walkSpeed);const goal=Math.atan2(-direction.x,-direction.z),angle=Math.atan2(Math.sin(goal-this.yaw),Math.cos(goal-this.yaw));this.yaw+=THREE.MathUtils.clamp(angle,-dt*10,dt*10);}
     if(this.shiftLock)this.yaw=cameraYaw;
     // Удерживаем аватар в видимой тестовой зоне без скачкообразного переноса между её краями.
     this.position.x=THREE.MathUtils.clamp(this.position.x,-100,100);this.position.z=THREE.MathUtils.clamp(this.position.z,-100,100);
+    // Темп шага следует за фактическим перемещением, включая скольжение вдоль границы.
+    const distance=Math.hypot(this.position.x-previousX,this.position.z-previousZ);
+    this.moving=distance>1e-6;
     if(this.keys.has('Space'))this.jump();
     if(this.height>0||this.velocity>0){this.velocity-=196.2*dt;this.height=Math.max(0,this.height+this.velocity*dt);if(this.height===0)this.velocity=0;}
     this.rig.position.copy(this.position);this.rig.position.y=this.height;this.rig.rotation.y=this.yaw;
-    this.animate(dt);
+    this.animate(dt,distance);
   }
-  private animate(dt:number){
+  private animate(dt:number,distance=0){
     const name=this.height>0?(this.velocity>0?'jump':'fall'):this.moving?'walk':'idle';
     if(name!==this.animation){this.animation=name;this.animationTime=0;this.blend=0;this.blendFrom=Object.fromEntries(Object.entries(this.pose).map(([n,m])=>[n,m.clone()]));}
-    this.animationTime+=dt*(name==='walk'?16/14.5:1);this.blend=Math.min(1,this.blend+dt/.12);
+    this.animationTime+=name==='walk'?distance/14.5:dt;this.blend=Math.min(1,this.blend+dt/.12);
     const frames=stock.animations[name],duration=frames[frames.length-1].time;
     const time=name==='walk'||name==='idle'?this.animationTime%duration:Math.min(this.animationTime,duration);
     const hi=frames.findIndex(f=>f.time>=time),b=frames[hi<0?frames.length-1:hi],a=frames[Math.max(0,(hi<0?frames.length-1:hi)-1)];
@@ -70,17 +81,21 @@ export class TryOn {
     };
     for(const [name,part]of Object.entries(this.parts))resolve(name).decompose(part.position,part.quaternion,part.scale);
   }
-  mount(slot:string,attachment?:number[],offset=[0,0,0]){
+  mount(slot:string,attachments:readonly AccessoryAttachment[]=[]){
     this.rig.updateMatrixWorld(true);
     const mounts:Record<string,number[]>={hat:[0,5,0],hair:[0,5,0],face:[0,4.5,-.5],neck:[0,4,0],shoulder:[1.5,3.8,0],back:[0,3,.5],front:[0,3,-.5],waist:[0,2,0]};
-    const names:Record<string,string[]>={hat:['HatAttachment'],hair:['HairAttachment'],face:['FaceFrontAttachment'],back:['BodyBackAttachment'],front:['BodyFrontAttachment'],waist:['WaistCenterAttachment'],neck:['NeckAttachment'],shoulder:['RightShoulderAttachment']};
-    const definition=stock.attachments[names[slot]?.[0]];
-    const target=definition&&this.parts[definition.part]?this.parts[definition.part].matrix.clone().multiply(matrix(definition.frame)):new THREE.Matrix4().makeTranslation(...(mounts[slot]??mounts.hat) as [number,number,number]);
-    if(attachment?.length===12){
-      const a=attachment;
-      target.multiply(new THREE.Matrix4().set(a[3],a[4],a[5],a[0],a[6],a[7],a[8],a[1],a[9],a[10],a[11],a[2],0,0,0,1).invert());
+    const names=slotAttachments[slot]??slotAttachments.hat;
+    let attachment:AccessoryAttachment|undefined;
+    for(const candidate of attachments){
+      if(!candidate||!Object.hasOwn(stock.attachments,candidate.name)||!Array.isArray(candidate.frame)||
+        candidate.frame.length!==12||!candidate.frame.every(n=>Number.isFinite(n)&&Math.abs(n)<10000))continue;
+      if(names.includes(candidate.name)){attachment=candidate;break;}
+      attachment??=candidate;
     }
-    target.premultiply(new THREE.Matrix4().makeTranslation(...offset as [number,number,number]));
-    this.rig.updateMatrixWorld(true);return this.rig.matrixWorld.clone().multiply(target);
+    // Совмещаем одноимённые крепления. У пояса центр, спина и перед находятся в разных точках.
+    const definition=stock.attachments[attachment?.name??names[0]];
+    const target=definition&&this.parts[definition.part]?this.parts[definition.part].matrix.clone().multiply(matrix(definition.frame)):new THREE.Matrix4().makeTranslation(...(mounts[slot]??mounts.hat) as [number,number,number]);
+    if(attachment)target.multiply(matrix(attachment.frame).invert());
+    return this.rig.matrixWorld.clone().multiply(target);
   }
 }

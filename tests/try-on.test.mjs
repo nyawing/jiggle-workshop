@@ -19,9 +19,24 @@ test('fitting moves whole R6, jumps and lands; mount preserves attachment frame'
  const m=attachment.elements,flat=[m[12],m[13],m[14],m[0],m[4],m[8],m[1],m[5],m[9],m[2],m[6],m[10]];
  const frame=stock.attachments.HatAttachment.frame;
  const attach=new THREE.Matrix4().set(frame[3],frame[4],frame[5],frame[0],frame[6],frame[7],frame[8],frame[1],frame[9],frame[10],frame[11],frame[2],0,0,0,1);
- const actual=rig.mount('hat',flat).multiply(attachment),expected=rig.rig.matrixWorld.clone().multiply(rig.rig.getObjectByName('Head').matrix).multiply(attach);
+ const actual=rig.mount('hat',[{name:'HatAttachment',frame:flat}]).multiply(attachment),expected=rig.rig.matrixWorld.clone().multiply(rig.rig.getObjectByName('Head').matrix).multiply(attach);
  actual.elements.forEach((n,i)=>assert(Math.abs(n-expected.elements[i])<1e-6));
  rig.show(false);assert.equal(rig.keys.size,0);assert.equal(rig.rig.visible,false);
+});
+
+test('fitting aligns named waist attachments on the animated torso',()=>{
+ const rig=new TryOn(new THREE.Scene());
+ rig.show(true);rig.keys.add('KeyW');
+ for(let i=0;i<24;i++)rig.update(1/60,.4);
+ const torso=rig.rig.getObjectByName('Torso');
+ // Система координат WaistBackAttachment из хвоста каталога 283193.
+ const frame=[-.000278,.443158,-1.078512,1,0,0,0,1,0,0,0,1];
+ const origin=new THREE.Vector3(...frame.slice(0,3));
+ for(const [name,z] of [['WaistBackAttachment',.5],['WaistFrontAttachment',-.5],['WaistCenterAttachment',0],['BodyBackAttachment',.5]]){
+  const actual=origin.clone().applyMatrix4(rig.mount('waist',[{name,frame}])).applyMatrix4(torso.matrixWorld.clone().invert());
+  const expected=new THREE.Vector3(0,name==='BodyBackAttachment'?0:-1,z);
+  assert(actual.distanceTo(expected)<1e-6,name);
+ }
 });
 
 test('live physics settings preserve pose; wind causes motion while root is stationary',async()=>{
@@ -54,4 +69,24 @@ test('held Space repeats jumps, release stops repeats, Shift Lock faces camera w
  rig.keys.clear();rig.update(1/60,-.3);assert.equal(rig.yaw,-.3,'camera turns avatar while idle too');
  const head=rig.rig.getObjectByName('Head').children[0];assert.equal(head.scale.x,1);
  rig.show(false);assert.equal(rig.shiftLock,false);
+});
+
+test('fitting stops walking into the arena wall and advances gait with sliding distance',()=>{
+ const rig=new TryOn(new THREE.Scene());
+ rig.show(true);
+ rig.position.z=-100;
+ rig.keys.add('KeyW');
+ rig.update(1/60,0);
+ assert.equal(rig.position.z,-100);
+ assert.equal(rig.moving,false);
+
+ rig.keys.add('KeyD');
+ rig.update(1/60,0);
+ assert.equal(rig.position.z,-100);
+ assert.equal(rig.moving,true);
+ assert(Math.abs(rig.position.x-16/60/Math.SQRT2)<1e-9);
+
+ rig.position.x=100;
+ rig.update(1/60,0);
+ assert.equal(rig.moving,false);
 });
