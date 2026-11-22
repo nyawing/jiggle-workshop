@@ -90,13 +90,7 @@ local function initialize(positionsText,parentsText,rotationsText,stiffness,damp
     lastPosition=part.Position
     return #bones
 end
-local function step(dt,x,y,z,yaw,orientationText,contactText,lagText,backX,backZ,jumping,neckY)
-    table.clear(workshopLagRoots)
-    for index in (lagText or ''):gmatch('%d+') do
-        local bone=bones[tonumber(index)]
-        if bone then workshopLagRoots[bone.Name]=true end
-    end
-    workshopLagBack=backX and vec(backX,0,backZ) or nil
+local function step(dt,x,y,z,yaw,orientationText,contactText,jumping,neckY)
     local previousFrames=hairContactFrames
     hairContactFrames=nil
     if contactText then

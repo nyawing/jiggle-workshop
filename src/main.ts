@@ -18,7 +18,7 @@ app.innerHTML=`<header><strong>Jiggle Workshop</strong><form id="remote"><input 
 <main><section id="stage"><div id="empty"><h1>Откройте аксессуар</h1><p>Введите ссылку на аксессуар или откройте проект (.jiggle.json или ZIP).</p><button id="demo">Учебный пример</button></div><div id="brushCursor"></div><div id="label">Ничего не загружено</div><div id="hint">Правая кнопка — камера · колёсико — вращение предмета</div></section>
 <aside><nav class="tabs"><button id="tabBones">Кости</button><button id="tabWeights">Веса</button><button id="tabCheck">Проверка</button></nav>
 <label id="chainPicker">Часть предмета<select id="chainSelect"><option value="">Новая часть</option></select></label>
-<section id="panelBones"><label id="hairWalkLagRow" class="toggle" hidden><input id="hairWalkLag" type="checkbox">Отставание при ходьбе</label><button id="chain" class="wide">Добавить кость: начало → конец</button><p class="help">Два клика — одна кость для отдельной части.</p><div class="pair"><button id="selectBone">Выбрать / двигать</button><button id="deleteBone" disabled>Удалить (Delete)</button></div>
+<section id="panelBones"><button id="chain" class="wide">Добавить кость: начало → конец</button><p class="help">Два клика — одна кость для отдельной части.</p><div class="pair"><button id="selectBone">Выбрать / двигать</button><button id="deleteBone" disabled>Удалить (Delete)</button></div>
 <details id="boneAdvanced"><summary>Точки и дополнительные звенья</summary><label>Название части<input id="chainName" maxlength="60" placeholder="Например, левый колокольчик"></label><div class="pair"><button id="anchor">Начало</button><button id="tip">Конец</button></div><label>Точка / кость<select id="boneSelect"><option value="anchor">Крепление</option><option value="tip">Конец</option></select></label><div class="coordinates"><label>X<input id="boneX" type="number" step="0.01"></label><label>Y<input id="boneY" type="number" step="0.01"></label><label>Z<input id="boneZ" type="number" step="0.01"></label></div><div class="pair"><button id="applyPosition">Применить XYZ</button><button id="centerBone">В центр меша</button></div><button id="place" class="wide">Поставить в плоскости вида</button><p class="help">Стрелки / XYZ — оси предмета. Клик в плоскости вида сохраняет глубину точки.</p><label>Число звеньев<input id="segments" type="number" min="1" max="24" step="1" value="1"></label><button id="applySegments" class="wide">Применить число звеньев</button></details></section>
 <section id="panelWeights" hidden><div class="pair"><button id="paint" class="selected">Кисть</button><button id="erase">Стереть</button></div><label>Вес <output id="weightValue">100%</output><input id="weight" type="range" min="0" max="100" value="100"></label><label>Размер кисти<input id="radius" type="range" min="8" max="90" value="28"></label><p class="help">Кисть задаёт вес выбранной части. 100% — сильное движение, 20% — слабое, 0% — неподвижно. Контрастный вид: красный — сильный вес, синий — неподвижно; фиолетовый — другие цепочки.</p><details id="brushAdvanced"><summary>Ограничение кисти</summary><div class="pair"><button id="part">Выбрать поверхность</button><button id="unlockPart">Все поверхности</button></div><p id="partHint" class="help">Мазок остаётся на поверхности, где начат.</p><button id="all" class="wide">Привязать весь меш к этой части</button></details></section>
 <section id="panelCheck" hidden><button id="simulate" class="wide" disabled>Включить симуляцию</button><button id="reset" class="wide">Сбросить положение</button><p class="help">Тяни предмет левой кнопкой. Сброс сохраняет кости и веса.</p><details id="physicsAdvanced" hidden><summary>Параметры движения</summary><label>Характер<select id="preset"><option value="hair">Волосы</option><option value="ears">Уши</option><option value="tail">Хвост</option><option value="pendant">Подвеска</option></select></label><label>Мягкость <output id="softValue">60%</output><input id="soft" type="range" min="0" max="100" value="60"></label><label>Затухание <output id="dampValue">18%</output><input id="damp" type="range" min="0" max="100" value="18"></label><label>Предел изгиба <output id="bendLimitValue">180°</output><input id="bendLimit" type="range" min="0" max="180" value="180"></label></details></section><button id="undo" class="wide">Отменить · Ctrl+Z</button></aside>
@@ -84,10 +84,9 @@ const ribbonUi=document.createElement('div');ribbonUi.innerHTML='<label><input i
 const capeUi=document.createElement('div');capeUi.innerHTML='<label>Изгиб цепочек<select id="motionMode"><option value="standard">Исходная форма</option><option value="cape">Плавный изгиб — ткань</option></select></label><label><input id="useGravity" type="checkbox" checked>Гравитация</label>';el('boneAdvanced').before(capeUi);capeUi.querySelector('input')!.parentElement!.hidden=true;const motionHelp=document.createElement('p');motionHelp.className='help';motionHelp.textContent='Исходная форма: звенья возвращаются к заданному направлению. Ткань: нижние звенья наследуют изгиб предыдущих, образуя плавную дугу. Режим действует на цепочки всего предмета.';capeUi.append(motionHelp);
 let ribbonBones:Record<string,string>|null={};
 let legacyWave:string|null=null;
-let hairWalkLag=new Set<string>();
 function isHairItem(){return (imported?.catalogType??imported?.savedProject?.catalogType??imported?.itemType)==='hair';}
-function motionExtras(){return {hairWalkLag:isHairItem()?chainPaths(bones).map(path=>bones[path[0]].name).filter(name=>hairWalkLag.has(name)):[],ribbonBones:ribbonBones===null?undefined:Object.fromEntries(Object.entries(ribbonBones).filter(([name])=>bones.some(b=>b.name===name))),motionMode:el<HTMLSelectElement>('motionMode').value,useGravity:el<HTMLInputElement>('useGravity').checked,ribbonWind:ribbonBones===null&&legacyWave!==null,ribbonDirection:legacyWave??'mixed'};}
-function restoreMotionExtras(s:any){hairWalkLag=new Set(Array.isArray(s?.hairWalkLag)?s.hairWalkLag.filter((name:unknown)=>typeof name==='string'):[]);legacyWave=s?.ribbonWind===true?(s.ribbonDirection??'mixed'):null;ribbonBones=s?.ribbonBones&&typeof s.ribbonBones==='object'?{...s.ribbonBones}:s?.ribbonWind===true?null:{};el<HTMLSelectElement>('motionMode').value=s?.motionMode==='cape'?'cape':'standard';el<HTMLInputElement>('useGravity').checked=s?.useGravity!==false;el<HTMLInputElement>('ribbonWind').checked=s?.ribbonWind===true;el<HTMLSelectElement>('ribbonDirection').value=['horizontal','vertical','depth'].includes(s?.ribbonDirection)?s.ribbonDirection:'mixed';}
+function motionExtras(){return {ribbonBones:ribbonBones===null?undefined:Object.fromEntries(Object.entries(ribbonBones).filter(([name])=>bones.some(b=>b.name===name))),motionMode:el<HTMLSelectElement>('motionMode').value,useGravity:el<HTMLInputElement>('useGravity').checked,ribbonWind:ribbonBones===null&&legacyWave!==null,ribbonDirection:legacyWave??'mixed'};}
+function restoreMotionExtras(s:any){legacyWave=s?.ribbonWind===true?(s.ribbonDirection??'mixed'):null;ribbonBones=s?.ribbonBones&&typeof s.ribbonBones==='object'?{...s.ribbonBones}:s?.ribbonWind===true?null:{};el<HTMLSelectElement>('motionMode').value=s?.motionMode==='cape'?'cape':'standard';el<HTMLInputElement>('useGravity').checked=s?.useGravity!==false;el<HTMLInputElement>('ribbonWind').checked=s?.ribbonWind===true;el<HTMLSelectElement>('ribbonDirection').value=['horizontal','vertical','depth'].includes(s?.ribbonDirection)?s.ribbonDirection:'mixed';}
 const motionFields=[['inertia','Инерция · ослабление реакции на движение',0,1,.01,0],['elasticity','Упругость · возврат к исходной форме',0,1,.01,.5],['windInfluence','Влияние ветра',0,1,.01,0],['windStrength','Плотность ветра',0,10,.1,1],['windSpeed','Скорость ветра',0,30,.1,8],['windAngle','Направление ветра, °',-180,180,5,0]] as const;
 for(const [id,title,min,max,step,value]of motionFields){const label=document.createElement('label');label.innerHTML=`${title}<input id="${id}" type="number" min="${min}" max="${max}" step="${step}" value="${value}">`;el('physicsAdvanced').append(label);}
 
@@ -150,7 +149,7 @@ let owners:string[]=[],partNames:Record<string,string>={},activeChain='',creatin
 function activePath(){return chainPaths(bones).find(p=>bones[p[0]].name===activeChain)??[];}
 function chainEndpoints(){const path=activePath();if(path.length&&!creating){anchor.fromArray(bones[path[0]].position);tip.fromArray(bones[path[path.length-1]].position);}}
 let anchorSet=false,tipSet=false,graph:SurfaceGraph|null=null,strokePart:number|null=null,lockedPart:number|null=null;
-type EditState={owners:string[];partNames:Record<string,string>;activeChain:string;creating:boolean;anchorSet:boolean;tipSet:boolean;mask:Float32Array;bones:BoneData[];skin:SkinData|null;anchor:number[];tip:number[];selected:Selection;surfaceSelection:number[];isolated:boolean;physics:{hairWalkLag?:string[];stiffness:number;damping:number;rotationLimit?:number;solver?:string;motionMode?:string;useGravity?:boolean;ribbonWind?:boolean;ribbonDirection?:string;ribbonBones?:Record<string,string>;inertia?:number;elasticity?:number;windInfluence?:number;windStrength?:number;windSpeed?:number;windAngle?:number}};
+type EditState={owners:string[];partNames:Record<string,string>;activeChain:string;creating:boolean;anchorSet:boolean;tipSet:boolean;mask:Float32Array;bones:BoneData[];skin:SkinData|null;anchor:number[];tip:number[];selected:Selection;surfaceSelection:number[];isolated:boolean;physics:{stiffness:number;damping:number;rotationLimit?:number;solver?:string;motionMode?:string;useGravity?:boolean;ribbonWind?:boolean;ribbonDirection?:string;ribbonBones?:Record<string,string>;inertia?:number;elasticity?:number;windInfluence?:number;windStrength?:number;windSpeed?:number;windAngle?:number}};
 let imported:any=null,texture:THREE.Texture|null=null,material:THREE.MeshStandardMaterial|null=null,history:EditState[]=[],projectModified=false;
 let luau:LuauState|null=null,api:any=null,physicsBusy=false,needInit=false,physicsPending=0;
 // Русские контекстные подсказки; настройки и экспортируемые идентификаторы остаются прежними.
@@ -173,7 +172,7 @@ for(const [id,text]of Object.entries(russianHelp)){const node=document.getElemen
 
 function status(text:string,error=false){el('status').textContent=text;el('status').classList.toggle('error',error);}
 async function action(fn:()=>Promise<void>){if(busy)return;busy=true;try{await fn();}catch(error){const message=error instanceof Error?error.message:String(error);status(message.replace(/^Error invoking remote method '[^']+': (?:Error: )?/,''),true);}finally{busy=false;}}
-function settings(){return {...motionExtras(),solver:el<HTMLSelectElement>('physicsSolver').value,stiffness:1-Number(el<HTMLInputElement>('soft').value)/100,damping:Number(el<HTMLInputElement>('damp').value)/100,rotationLimit:Number(el<HTMLInputElement>('bendLimit').value),...Object.fromEntries(motionFields.map(([id,,min,max,,fallback])=>{const n=Number(el<HTMLInputElement>(id).value);return [id,Number.isFinite(n)?THREE.MathUtils.clamp(n,min,id==='elasticity'&&el<HTMLSelectElement>('physicsSolver').value==='v2-sync'?12:max):fallback];}))} as {hairWalkLag:string[];motionMode:string;useGravity:boolean;ribbonWind:boolean;ribbonDirection:string;ribbonBones?:Record<string,string>;solver:string;stiffness:number;damping:number;rotationLimit:number;inertia:number;elasticity:number;windInfluence:number;windStrength:number;windSpeed:number;windAngle:number};}
+function settings(){return {...motionExtras(),solver:el<HTMLSelectElement>('physicsSolver').value,stiffness:1-Number(el<HTMLInputElement>('soft').value)/100,damping:Number(el<HTMLInputElement>('damp').value)/100,rotationLimit:Number(el<HTMLInputElement>('bendLimit').value),...Object.fromEntries(motionFields.map(([id,,min,max,,fallback])=>{const n=Number(el<HTMLInputElement>(id).value);return [id,Number.isFinite(n)?THREE.MathUtils.clamp(n,min,id==='elasticity'&&el<HTMLSelectElement>('physicsSolver').value==='v2-sync'?12:max):fallback];}))} as {motionMode:string;useGravity:boolean;ribbonWind:boolean;ribbonDirection:string;ribbonBones?:Record<string,string>;solver:string;stiffness:number;damping:number;rotationLimit:number;inertia:number;elasticity:number;windInfluence:number;windStrength:number;windSpeed:number;windAngle:number};}
 function worldOrientation(){const m=new THREE.Matrix4().makeRotationFromQuaternion(mesh!.getWorldQuaternion(new THREE.Quaternion())).elements;return [m[0],m[4],m[8],m[1],m[5],m[9],m[2],m[6],m[10]].join(',');}
 let lockYaw=0,lockPitch=.25,lockDistance=12;
 function setFittingLock(value:boolean){
@@ -274,8 +273,6 @@ function syncSelection(){
   const path=activePath(),partSelect=el<HTMLSelectElement>('chainSelect');partSelect.replaceChildren(...chainPaths(bones).map((p,i)=>new Option(partNames[bones[p[0]].name]??`Часть ${i+1}`,bones[p[0]].name)));
   if(!bones.length||creating)partSelect.add(new Option('Новая часть',''));partSelect.value=creating?'':activeChain;
   el<HTMLInputElement>('chainName').value=creating?'':partNames[activeChain]??'';
-  el('hairWalkLagRow').hidden=!isHairItem()||creating||path.length<2;
-  el<HTMLInputElement>('hairWalkLag').checked=isHairItem()&&hairWalkLag.has(activeChain);
   select.replaceChildren(...(!creating&&path.length?path.map((i,k)=>new Option(k===0?'Крепление':k===path.length-1?'Конец':`Точка ${k+1}`,String(i))):[new Option('Крепление','anchor'),new Option('Конец','tip')]));
   if(bones.length&&!creating&&typeof selected!=='number')selected=selected==='anchor'?path[0]:path[path.length-1];
   if((!bones.length||creating)&&typeof selected==='number')selected='anchor';
@@ -504,6 +501,13 @@ el('mirrorChain').onclick=()=>{
   }catch(error){status((error as Error).message,true);}
 };
 window.addEventListener('keydown',event=>{
+  if(!(event.ctrlKey||event.metaKey)||event.altKey||(event.code!=='KeyA'&&event.key.toLowerCase()!=='a'))return;
+  const target=event.target;
+  const textInput=target instanceof HTMLInputElement&&['text','search','url','tel','password','email','number'].includes(target.type);
+  if(target instanceof HTMLTextAreaElement||textInput||(target instanceof HTMLElement&&target.isContentEditable))return;
+  event.preventDefault();
+},true);
+window.addEventListener('keydown',event=>{
   const target=event.target as HTMLElement;if(['TEXTAREA','SELECT'].includes(target?.tagName)||(target instanceof HTMLInputElement&&!['range','checkbox','button'].includes(target.type))||target?.isContentEditable||event.altKey)return;
   if(fitting.enabled&&!event.ctrlKey&&!event.metaKey&&['KeyW','KeyA','KeyS','KeyD','Space'].includes(event.code))return;
   if((event.ctrlKey||event.metaKey)&&!event.repeat){if(event.code==='KeyW'){event.preventDefault();smoothSelected=false;setMode('gradient');}else if(event.code==='KeyQ'||event.code==='KeyD'){event.preventDefault();el(event.code==='KeyQ'?'chain':'mirrorChain').click();}return;}
@@ -569,7 +573,7 @@ window.addEventListener('keydown',event=>{const target=event.target as HTMLEleme
 function deleteSelected(){
   if(mode!=='bone'||typeof selected!=='number'||!skin||!bones.length||geometry?.rigged||transform.dragging)return;
   try{
-    const root=activeChain,oldPaths=chainPaths(bones),path=oldPaths.find(p=>p.includes(selected as number))!;const next=deleteRestBone(bones,selected,skin);finishStroke();stop();snapshot();bones=next.bones;skin=next.skin;if(path.length===2){owners=owners.map(owner=>owner===root?'':owner);delete partNames[root];hairWalkLag.delete(root);activeChain=chainPaths(bones).length?bones[chainPaths(bones)[0][0]].name:'';}creating=false;
+    const root=activeChain,oldPaths=chainPaths(bones),path=oldPaths.find(p=>p.includes(selected as number))!;const next=deleteRestBone(bones,selected,skin);finishStroke();stop();snapshot();bones=next.bones;skin=next.skin;if(path.length===2){owners=owners.map(owner=>owner===root?'':owner);delete partNames[root];activeChain=chainPaths(bones).length?bones[chainPaths(bones)[0][0]].name:'';}creating=false;
     if(bones.length){selected=activePath()[0];chainEndpoints();}
     else{selected='anchor';anchorSet=tipSet=false;}
     el<HTMLInputElement>('segments').value=String(bones.length?bones.length-2:1);rebuild();updateMarkers();
@@ -589,12 +593,6 @@ el('applySegments').onclick=()=>{try{
   const mapped={skinIndices:skin!.skinIndices.map(id=>remap.get(id)??0),skinWeights:[...skin!.skinWeights]};skin=skinForBones(geometry,mask,bones,mapped,touched,owners);selected=offset+1;rebuild();status('Звенья этой части изменены. Остальные части сохранены.');
 }catch(error){status((error as Error).message,true);}};
 el<HTMLSelectElement>('chainSelect').onchange=()=>{creating=false;activeChain=el<HTMLSelectElement>('chainSelect').value;selected=activePath()[0]??'anchor';stop();syncSelection();};
-el<HTMLInputElement>('hairWalkLag').onchange=()=>{
- if(!isHairItem()||creating||activePath().length<2)return;
- snapshot();
- if(el<HTMLInputElement>('hairWalkLag').checked)hairWalkLag.add(activeChain);
- else hairWalkLag.delete(activeChain);
-};
 el<HTMLInputElement>('chainName').onchange=()=>{if(!activeChain||creating)return;snapshot();partNames[activeChain]=el<HTMLInputElement>('chainName').value.trim()||'Часть';syncSelection();};
 el<HTMLInputElement>('weight').oninput=()=>el('weightValue').textContent=el<HTMLInputElement>('weight').value+'%';
 el('tabBones').onclick=()=>setMode('bone');el('tabWeights').onclick=()=>{el<HTMLInputElement>('weightHeatmap').checked=heatmapPreference;setMode('paint');};el('tabCheck').onclick=()=>{finishStroke();if(mode!=='check')stop();mode='check';showPanel('Check');syncSelection();status('Включи симуляцию и подвигай предмет.');};
@@ -633,10 +631,7 @@ async function physics(dt:number){
          ...bounds.getSize(new THREE.Vector3()).multiplyScalar(.5).toArray()];
        }).join(','):undefined;
       result=await api.get('step')(Math.min(dt,10),position.x,position.y,position.z,yaw,worldOrientation(),contact,
-       contact&&fitting.moving&&fitting.height===0
-        ? chainPaths(bones).filter(path=>hairWalkLag.has(bones[path[0]].name)).map(path=>path[0]+1).join(',')
-        : '',
-       Math.sin(fitting.yaw),Math.cos(fitting.yaw),fitting.height>0||fitting.keys.has('Space'),contact&&fitting.hairNeckHeight());
+       fitting.height>0||fitting.keys.has('Space'),contact&&fitting.hairNeckHeight());
     }
     else{const steps=Math.max(1,Math.ceil(Math.min(dt,.05)/(1/60)));
     for(let i=0;i<steps;i++)result=await api.get('step')(Math.min(dt,.05)/steps,position.x,position.y,position.z,yaw,worldOrientation());}

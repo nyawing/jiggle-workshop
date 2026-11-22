@@ -350,21 +350,6 @@ local function constrainHairBend(point,parent,frontLock)
     end
 end
 
-local workshopLagRoots,workshopLagBack={},nil
-local function applyWorkshopWalkLag(tree)
-    if not workshopLagBack or not tree.Root or not workshopLagRoots[tree.Root.Name] then return end
-                                                                          
-                                       
-    local advance=-tree.ObjectMove:Dot(workshopLagBack)
-    if advance<=0 then return end
-    local offset=workshopLagBack*math.min(.022,advance*.08)
-    for _,point in ipairs(tree.Particles) do
-        if point.ParentIndex>=1 and not point.Anchored then
-            point.Position=point.Position+offset
-        end
-    end
-end
-
 local function loadLegacySolver()
 local function load_Config()
 return {
@@ -2606,7 +2591,6 @@ local installConstraints = (function()
 return function(module, constraints)
     local correct = module.CorrectParticles
     function module:CorrectParticles(tree, dt)
-        applyWorkshopWalkLag(tree)
         correct(self, tree, dt)
         for _, point in ipairs(tree.Particles) do
             local parent = tree.Particles[point.ParentIndex]
@@ -7053,13 +7037,7 @@ local function initialize(positionsText,parentsText,rotationsText,stiffness,damp
     lastPosition=part.Position
     return #bones
 end
-local function step(dt,x,y,z,yaw,orientationText,contactText,lagText,backX,backZ,jumping,neckY)
-    table.clear(workshopLagRoots)
-    for index in (lagText or ''):gmatch('%d+') do
-        local bone=bones[tonumber(index)]
-        if bone then workshopLagRoots[bone.Name]=true end
-    end
-    workshopLagBack=backX and vec(backX,0,backZ) or nil
+local function step(dt,x,y,z,yaw,orientationText,contactText,jumping,neckY)
     local previousFrames=hairContactFrames
     hairContactFrames=nil
     if contactText then
