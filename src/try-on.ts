@@ -25,10 +25,6 @@ export class TryOn {
   readonly environment=new THREE.Group();
   readonly position=new THREE.Vector3();
   readonly keys=new Set<string>();
-  private readonly posePivot=new THREE.Vector3(0,3,0);
-  private readonly rotatedPivot=new THREE.Vector3();
-  tilt=0;
-  tiltTarget=0;
   yaw=0; height=0; velocity=0; time=0; enabled=false; moving=false; shiftLock=false;
   private parts:Record<string,THREE.Object3D>={};
   private readonly torsoBounds=new THREE.Box3().setFromArray(stock.meshes.Torso.positions);
@@ -69,14 +65,12 @@ export class TryOn {
     scene.add(this.rig,this.environment);this.animate(0);this.show(false);
   }
   show(value:boolean){this.enabled=value;this.rig.visible=this.environment.visible=value;this.keys.clear();if(!value)this.shiftLock=false;}
-  reset(){this.position.set(0,0,0);this.height=this.velocity=this.yaw=this.time=this.tilt=this.tiltTarget=0;this.keys.clear();this.animation='idle';this.animationTime=0;this.blend=1;this.pose={};this.blendFrom={};this.update(0,0);}
+  reset(){this.position.set(0,0,0);this.height=this.velocity=this.yaw=this.time=0;this.keys.clear();this.animation='idle';this.animationTime=0;this.blend=1;this.pose={};this.blendFrom={};this.update(0,0);}
   jump(){if(this.enabled&&this.height===0)this.velocity=50;}
   update(dt:number,cameraYaw:number){
     dt=THREE.MathUtils.clamp(dt,0,.05);this.time+=dt;
-    this.tilt+=THREE.MathUtils.clamp(this.tiltTarget-this.tilt,-dt*5,dt*5);
-    const tilted=this.tilt!==0||this.tiltTarget!==0;
-    const x=tilted?0:Number(this.keys.has('KeyD'))-Number(this.keys.has('KeyA'));
-    const z=tilted?0:Number(this.keys.has('KeyS'))-Number(this.keys.has('KeyW'));
+    const x=Number(this.keys.has('KeyD'))-Number(this.keys.has('KeyA'));
+    const z=Number(this.keys.has('KeyS'))-Number(this.keys.has('KeyW'));
     const direction=new THREE.Vector3(x,0,z).applyAxisAngle(new THREE.Vector3(0,1,0),cameraYaw);
     const previousX=this.position.x,previousZ=this.position.z;
     if(direction.lengthSq()>0){direction.normalize();this.position.addScaledVector(direction,dt*walkSpeed);const goal=Math.atan2(-direction.x,-direction.z),angle=Math.atan2(Math.sin(goal-this.yaw),Math.cos(goal-this.yaw));this.yaw+=THREE.MathUtils.clamp(angle,-dt*10,dt*10);}
@@ -86,11 +80,9 @@ export class TryOn {
     // Темп шага следует за фактическим перемещением, включая скольжение вдоль границы.
     const distance=Math.hypot(this.position.x-previousX,this.position.z-previousZ);
     this.moving=distance>1e-6;
-    if(!tilted&&this.keys.has('Space'))this.jump();
+    if(this.keys.has('Space'))this.jump();
     if(this.height>0||this.velocity>0){this.velocity-=196.2*dt;this.height=Math.max(0,this.height+this.velocity*dt);if(this.height===0)this.velocity=0;}
-    this.rig.position.copy(this.position);this.rig.position.y=this.height;this.rig.rotation.set(this.tilt,this.yaw,0,'YXZ');
-    this.rotatedPivot.copy(this.posePivot).applyQuaternion(this.rig.quaternion);
-    this.rig.position.add(this.posePivot).sub(this.rotatedPivot);
+    this.rig.position.copy(this.position);this.rig.position.y=this.height;this.rig.rotation.y=this.yaw;
     this.animate(dt,distance);
   }
   private animate(dt:number,distance=0){
