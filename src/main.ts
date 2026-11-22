@@ -18,7 +18,7 @@ app.innerHTML=`<header><strong>Jiggle Workshop</strong><form id="remote"><input 
 <main><section id="stage"><div id="empty"><h1>Откройте аксессуар</h1><p>Введите ссылку на аксессуар или откройте проект (.jiggle.json или ZIP).</p><button id="demo">Учебный пример</button></div><div id="brushCursor"></div><div id="label">Ничего не загружено</div><div id="hint">Правая кнопка — камера · колёсико — вращение предмета</div></section>
 <aside><nav class="tabs"><button id="tabBones">Кости</button><button id="tabWeights">Веса</button><button id="tabCheck">Проверка</button></nav>
 <label id="chainPicker">Часть предмета<select id="chainSelect"><option value="">Новая часть</option></select></label>
-<section id="panelBones"><button id="chain" class="wide">Добавить кость: начало → конец</button><p class="help">Два клика — одна кость для отдельной части.</p><div class="pair"><button id="selectBone">Выбрать / двигать</button><button id="deleteBone" disabled>Удалить (Delete)</button></div>
+<section id="panelBones"><label id="hairWalkLagRow" class="toggle" hidden><input id="hairWalkLag" type="checkbox">Отставание при ходьбе</label><button id="chain" class="wide">Добавить кость: начало → конец</button><p class="help">Два клика — одна кость для отдельной части.</p><div class="pair"><button id="selectBone">Выбрать / двигать</button><button id="deleteBone" disabled>Удалить (Delete)</button></div>
 <details id="boneAdvanced"><summary>Точки и дополнительные звенья</summary><label>Название части<input id="chainName" maxlength="60" placeholder="Например, левый колокольчик"></label><div class="pair"><button id="anchor">Начало</button><button id="tip">Конец</button></div><label>Точка / кость<select id="boneSelect"><option value="anchor">Крепление</option><option value="tip">Конец</option></select></label><div class="coordinates"><label>X<input id="boneX" type="number" step="0.01"></label><label>Y<input id="boneY" type="number" step="0.01"></label><label>Z<input id="boneZ" type="number" step="0.01"></label></div><div class="pair"><button id="applyPosition">Применить XYZ</button><button id="centerBone">В центр меша</button></div><button id="place" class="wide">Поставить в плоскости вида</button><p class="help">Стрелки / XYZ — оси предмета. Клик в плоскости вида сохраняет глубину точки.</p><label>Число звеньев<input id="segments" type="number" min="1" max="24" step="1" value="1"></label><button id="applySegments" class="wide">Применить число звеньев</button></details></section>
 <section id="panelWeights" hidden><div class="pair"><button id="paint" class="selected">Кисть</button><button id="erase">Стереть</button></div><label>Вес <output id="weightValue">100%</output><input id="weight" type="range" min="0" max="100" value="100"></label><label>Размер кисти<input id="radius" type="range" min="8" max="90" value="28"></label><p class="help">Кисть задаёт вес выбранной части. 100% — сильное движение, 20% — слабое, 0% — неподвижно. Контрастный вид: красный — сильный вес, синий — неподвижно; фиолетовый — другие цепочки.</p><details id="brushAdvanced"><summary>Ограничение кисти</summary><div class="pair"><button id="part">Выбрать поверхность</button><button id="unlockPart">Все поверхности</button></div><p id="partHint" class="help">Мазок остаётся на поверхности, где начат.</p><button id="all" class="wide">Привязать весь меш к этой части</button></details></section>
 <section id="panelCheck" hidden><button id="simulate" class="wide" disabled>Включить симуляцию</button><button id="reset" class="wide">Сбросить положение</button><p class="help">Тяни предмет левой кнопкой. Сброс сохраняет кости и веса.</p><details id="physicsAdvanced" hidden><summary>Параметры движения</summary><label>Характер<select id="preset"><option value="hair">Волосы</option><option value="ears">Уши</option><option value="tail">Хвост</option><option value="pendant">Подвеска</option></select></label><label>Мягкость <output id="softValue">60%</output><input id="soft" type="range" min="0" max="100" value="60"></label><label>Затухание <output id="dampValue">18%</output><input id="damp" type="range" min="0" max="100" value="18"></label><label>Предел изгиба <output id="bendLimitValue">180°</output><input id="bendLimit" type="range" min="0" max="180" value="180"></label></details></section><button id="undo" class="wide">Отменить · Ctrl+Z</button></aside>
@@ -73,6 +73,8 @@ const fittingUi=document.createElement('div');fittingUi.id='fittingControls';
 fittingUi.innerHTML=`<label class="toggle"><input id="tryOn" type="checkbox">Примерить на персонажа</label>
 <div id="fittingOptions" hidden>
 <button id="fittingHome" class="wide">Вернуть персонажа на старт</button>
+<label>Поза персонажа<select id="fittingTilt"><option value="0">Стоя</option><option value="-1">Лицом к полу</option><option value="1">Спиной к полу</option></select></label>
+
 <button id="fittingShiftLock" class="wide" aria-pressed="false">Shift Lock</button></div>`;
 el('simulate').after(fittingUi);
 const solverLabel=document.createElement('label');solverLabel.hidden=true;solverLabel.innerHTML='Физика<select id="physicsSolver"><option value="v1-sync">V1 · синхронизация (как в игре)</option><option value="legacy">V1 · без синхронизации</option><option value="v2-sync" hidden>Архивный проект V2</option></select>';fittingUi.before(solverLabel);
@@ -83,8 +85,9 @@ const ribbonUi=document.createElement('div');ribbonUi.innerHTML='<label><input i
 const capeUi=document.createElement('div');capeUi.innerHTML='<label>Изгиб цепочек<select id="motionMode"><option value="standard">Исходная форма</option><option value="cape">Плавный изгиб — ткань</option></select></label><label><input id="useGravity" type="checkbox" checked>Гравитация</label>';el('boneAdvanced').before(capeUi);capeUi.querySelector('input')!.parentElement!.hidden=true;const motionHelp=document.createElement('p');motionHelp.className='help';motionHelp.textContent='Исходная форма: звенья возвращаются к заданному направлению. Ткань: нижние звенья наследуют изгиб предыдущих, образуя плавную дугу. Режим действует на цепочки всего предмета.';capeUi.append(motionHelp);
 let ribbonBones:Record<string,string>|null={};
 let legacyWave:string|null=null;
-function motionExtras(){return {ribbonBones:ribbonBones===null?undefined:Object.fromEntries(Object.entries(ribbonBones).filter(([name])=>bones.some(b=>b.name===name))),motionMode:el<HTMLSelectElement>('motionMode').value,useGravity:el<HTMLInputElement>('useGravity').checked,ribbonWind:ribbonBones===null&&legacyWave!==null,ribbonDirection:legacyWave??'mixed'};}
-function restoreMotionExtras(s:any){legacyWave=s?.ribbonWind===true?(s.ribbonDirection??'mixed'):null;ribbonBones=s?.ribbonBones&&typeof s.ribbonBones==='object'?{...s.ribbonBones}:s?.ribbonWind===true?null:{};el<HTMLSelectElement>('motionMode').value=s?.motionMode==='cape'?'cape':'standard';el<HTMLInputElement>('useGravity').checked=s?.useGravity!==false;el<HTMLInputElement>('ribbonWind').checked=s?.ribbonWind===true;el<HTMLSelectElement>('ribbonDirection').value=['horizontal','vertical','depth'].includes(s?.ribbonDirection)?s.ribbonDirection:'mixed';}
+let hairWalkLag=new Set<string>();
+function motionExtras(){return {hairWalkLag:chainPaths(bones).map(path=>bones[path[0]].name).filter(name=>hairWalkLag.has(name)),ribbonBones:ribbonBones===null?undefined:Object.fromEntries(Object.entries(ribbonBones).filter(([name])=>bones.some(b=>b.name===name))),motionMode:el<HTMLSelectElement>('motionMode').value,useGravity:el<HTMLInputElement>('useGravity').checked,ribbonWind:ribbonBones===null&&legacyWave!==null,ribbonDirection:legacyWave??'mixed'};}
+function restoreMotionExtras(s:any){hairWalkLag=new Set(Array.isArray(s?.hairWalkLag)?s.hairWalkLag.filter((name:unknown)=>typeof name==='string'):[]);legacyWave=s?.ribbonWind===true?(s.ribbonDirection??'mixed'):null;ribbonBones=s?.ribbonBones&&typeof s.ribbonBones==='object'?{...s.ribbonBones}:s?.ribbonWind===true?null:{};el<HTMLSelectElement>('motionMode').value=s?.motionMode==='cape'?'cape':'standard';el<HTMLInputElement>('useGravity').checked=s?.useGravity!==false;el<HTMLInputElement>('ribbonWind').checked=s?.ribbonWind===true;el<HTMLSelectElement>('ribbonDirection').value=['horizontal','vertical','depth'].includes(s?.ribbonDirection)?s.ribbonDirection:'mixed';}
 const motionFields=[['inertia','Инерция · ослабление реакции на движение',0,1,.01,0],['elasticity','Упругость · возврат к исходной форме',0,1,.01,.5],['windInfluence','Влияние ветра',0,1,.01,0],['windStrength','Плотность ветра',0,10,.1,1],['windSpeed','Скорость ветра',0,30,.1,8],['windAngle','Направление ветра, °',-180,180,5,0]] as const;
 for(const [id,title,min,max,step,value]of motionFields){const label=document.createElement('label');label.innerHTML=`${title}<input id="${id}" type="number" min="${min}" max="${max}" step="${step}" value="${value}">`;el('physicsAdvanced').append(label);}
 
@@ -147,7 +150,7 @@ let owners:string[]=[],partNames:Record<string,string>={},activeChain='',creatin
 function activePath(){return chainPaths(bones).find(p=>bones[p[0]].name===activeChain)??[];}
 function chainEndpoints(){const path=activePath();if(path.length&&!creating){anchor.fromArray(bones[path[0]].position);tip.fromArray(bones[path[path.length-1]].position);}}
 let anchorSet=false,tipSet=false,graph:SurfaceGraph|null=null,strokePart:number|null=null,lockedPart:number|null=null;
-type EditState={owners:string[];partNames:Record<string,string>;activeChain:string;creating:boolean;anchorSet:boolean;tipSet:boolean;mask:Float32Array;bones:BoneData[];skin:SkinData|null;anchor:number[];tip:number[];selected:Selection;surfaceSelection:number[];isolated:boolean;physics:{stiffness:number;damping:number;rotationLimit?:number;solver?:string;motionMode?:string;useGravity?:boolean;ribbonWind?:boolean;ribbonDirection?:string;ribbonBones?:Record<string,string>;inertia?:number;elasticity?:number;windInfluence?:number;windStrength?:number;windSpeed?:number;windAngle?:number}};
+type EditState={owners:string[];partNames:Record<string,string>;activeChain:string;creating:boolean;anchorSet:boolean;tipSet:boolean;mask:Float32Array;bones:BoneData[];skin:SkinData|null;anchor:number[];tip:number[];selected:Selection;surfaceSelection:number[];isolated:boolean;physics:{hairWalkLag?:string[];stiffness:number;damping:number;rotationLimit?:number;solver?:string;motionMode?:string;useGravity?:boolean;ribbonWind?:boolean;ribbonDirection?:string;ribbonBones?:Record<string,string>;inertia?:number;elasticity?:number;windInfluence?:number;windStrength?:number;windSpeed?:number;windAngle?:number}};
 let imported:any=null,texture:THREE.Texture|null=null,material:THREE.MeshStandardMaterial|null=null,history:EditState[]=[],projectModified=false;
 let luau:LuauState|null=null,api:any=null,physicsBusy=false,needInit=false,physicsPending=0;
 // Русские контекстные подсказки; настройки и экспортируемые идентификаторы остаются прежними.
@@ -170,7 +173,7 @@ for(const [id,text]of Object.entries(russianHelp)){const node=document.getElemen
 
 function status(text:string,error=false){el('status').textContent=text;el('status').classList.toggle('error',error);}
 async function action(fn:()=>Promise<void>){if(busy)return;busy=true;try{await fn();}catch(error){const message=error instanceof Error?error.message:String(error);status(message.replace(/^Error invoking remote method '[^']+': (?:Error: )?/,''),true);}finally{busy=false;}}
-function settings(){return {...motionExtras(),solver:el<HTMLSelectElement>('physicsSolver').value,stiffness:1-Number(el<HTMLInputElement>('soft').value)/100,damping:Number(el<HTMLInputElement>('damp').value)/100,rotationLimit:Number(el<HTMLInputElement>('bendLimit').value),...Object.fromEntries(motionFields.map(([id,,min,max,,fallback])=>{const n=Number(el<HTMLInputElement>(id).value);return [id,Number.isFinite(n)?THREE.MathUtils.clamp(n,min,id==='elasticity'&&el<HTMLSelectElement>('physicsSolver').value==='v2-sync'?12:max):fallback];}))} as {motionMode:string;useGravity:boolean;ribbonWind:boolean;ribbonDirection:string;ribbonBones?:Record<string,string>;solver:string;stiffness:number;damping:number;rotationLimit:number;inertia:number;elasticity:number;windInfluence:number;windStrength:number;windSpeed:number;windAngle:number};}
+function settings(){return {...motionExtras(),solver:el<HTMLSelectElement>('physicsSolver').value,stiffness:1-Number(el<HTMLInputElement>('soft').value)/100,damping:Number(el<HTMLInputElement>('damp').value)/100,rotationLimit:Number(el<HTMLInputElement>('bendLimit').value),...Object.fromEntries(motionFields.map(([id,,min,max,,fallback])=>{const n=Number(el<HTMLInputElement>(id).value);return [id,Number.isFinite(n)?THREE.MathUtils.clamp(n,min,id==='elasticity'&&el<HTMLSelectElement>('physicsSolver').value==='v2-sync'?12:max):fallback];}))} as {hairWalkLag:string[];motionMode:string;useGravity:boolean;ribbonWind:boolean;ribbonDirection:string;ribbonBones?:Record<string,string>;solver:string;stiffness:number;damping:number;rotationLimit:number;inertia:number;elasticity:number;windInfluence:number;windStrength:number;windSpeed:number;windAngle:number};}
 function worldOrientation(){const m=new THREE.Matrix4().makeRotationFromQuaternion(mesh!.getWorldQuaternion(new THREE.Quaternion())).elements;return [m[0],m[4],m[8],m[1],m[5],m[9],m[2],m[6],m[10]].join(',');}
 let lockYaw=0,lockPitch=.25,lockDistance=12;
 function setFittingLock(value:boolean){
@@ -189,21 +192,23 @@ async function toggleFittingLock(){
  try{const request=renderer.domElement.requestPointerLock();request?.catch(()=>{});}catch{}
 }
 function endFitting(){
- if(!fitting.enabled)return;setFittingLock(false);fitting.show(false);el<HTMLInputElement>('tryOn').checked=false;el('fittingOptions').hidden=true;
+ if(!fitting.enabled)return;
+ setFittingLock(false);fitting.show(false);el<HTMLInputElement>('tryOn').checked=false;el('fittingOptions').hidden=true;
  if(fittingBackup){motion.copy(fittingBackup.motion);yaw=fittingBackup.yaw;camera.position.copy(fittingBackup.camera);controls.target.copy(fittingBackup.target);camera.near=fittingBackup.near;camera.far=fittingBackup.far;controls.minDistance=fittingBackup.min;controls.maxDistance=fittingBackup.max;camera.updateProjectionMatrix();}
  body.position.copy(center).add(motion);body.rotation.set(0,yaw,0);body.scale.set(1,1,1);fittingBackup=null;
 }
 function startFitting(){
  if(fitting.enabled)return;finishStroke();
  fittingBackup={motion:motion.clone(),yaw,camera:camera.position.clone(),target:controls.target.clone(),near:camera.near,far:camera.far,min:controls.minDistance,max:controls.maxDistance};
- fitting.reset();fitting.show(true);el('fittingOptions').hidden=false;
+ fitting.reset();el<HTMLSelectElement>('fittingTilt').value='0';fitting.show(true);el('fittingOptions').hidden=false;
+
  controls.target.set(0,3,0);camera.position.set(8,6,12);camera.near=.01;camera.far=1000;controls.minDistance=2;controls.maxDistance=40;camera.updateProjectionMatrix();updateFitting(0);needInit=true;
 }
 function updateFitting(dt:number){
- const last=fitting.rig.position.clone();const look=camera.position.clone().sub(controls.target);fitting.update(running?dt:0,fitting.shiftLock?lockYaw:Math.atan2(look.x,look.z));
- const delta=fitting.rig.position.clone().sub(last);camera.position.add(delta);controls.target.add(delta);
+ const last=fitting.position.clone().setY(fitting.height);const look=camera.position.clone().sub(controls.target);fitting.update(running?dt:0,fitting.shiftLock?lockYaw:Math.atan2(look.x,look.z));
+ const delta=fitting.position.clone().setY(fitting.height).sub(last);camera.position.add(delta);controls.target.add(delta);
  if(fitting.shiftLock){
-  controls.target.copy(fitting.rig.position).add(new THREE.Vector3(0,3,0)).add(new THREE.Vector3(Math.cos(lockYaw),0,-Math.sin(lockYaw)).multiplyScalar(1.3));
+  controls.target.copy(fitting.position).setY(fitting.height+3).add(new THREE.Vector3(Math.cos(lockYaw),0,-Math.sin(lockYaw)).multiplyScalar(1.3));
   camera.position.copy(controls.target).add(new THREE.Vector3(Math.sin(lockYaw)*Math.cos(lockPitch),Math.sin(lockPitch),Math.cos(lockYaw)*Math.cos(lockPitch)).multiplyScalar(lockDistance));camera.lookAt(controls.target);
  }
  const category=imported?.catalogType??imported?.savedProject?.catalogType;
@@ -269,6 +274,8 @@ function syncSelection(){
   const path=activePath(),partSelect=el<HTMLSelectElement>('chainSelect');partSelect.replaceChildren(...chainPaths(bones).map((p,i)=>new Option(partNames[bones[p[0]].name]??`Часть ${i+1}`,bones[p[0]].name)));
   if(!bones.length||creating)partSelect.add(new Option('Новая часть',''));partSelect.value=creating?'':activeChain;
   el<HTMLInputElement>('chainName').value=creating?'':partNames[activeChain]??'';
+  el('hairWalkLagRow').hidden=(imported?.catalogType??imported?.itemType)!=='hair'||creating||path.length<2;
+  el<HTMLInputElement>('hairWalkLag').checked=hairWalkLag.has(activeChain);
   select.replaceChildren(...(!creating&&path.length?path.map((i,k)=>new Option(k===0?'Крепление':k===path.length-1?'Конец':`Точка ${k+1}`,String(i))):[new Option('Крепление','anchor'),new Option('Конец','tip')]));
   if(bones.length&&!creating&&typeof selected!=='number')selected=selected==='anchor'?path[0]:path[path.length-1];
   if((!bones.length||creating)&&typeof selected==='number')selected='anchor';
@@ -357,6 +364,7 @@ function brushCandidates(event:PointerEvent,from=lastDab){
  return result;
 }
 function updateSkin(touched:Set<number>){
+
  if(!mesh)return;
  if(bones.length){skin=skinForBones(geometry!,mask,bones,skin??undefined,touched,owners);for(const [name,values] of [['skinIndex',skin.skinIndices],['skinWeight',skin.skinWeights]] as const){const attribute=mesh.geometry.getAttribute(name) as THREE.BufferAttribute;for(const i of touched)attribute.setXYZW(i,values[i*4],values[i*4+1],values[i*4+2],values[i*4+3]);attribute.needsUpdate=true;}}
  colors();
@@ -561,7 +569,7 @@ window.addEventListener('keydown',event=>{const target=event.target as HTMLEleme
 function deleteSelected(){
   if(mode!=='bone'||typeof selected!=='number'||!skin||!bones.length||geometry?.rigged||transform.dragging)return;
   try{
-    const root=activeChain,oldPaths=chainPaths(bones),path=oldPaths.find(p=>p.includes(selected as number))!;const next=deleteRestBone(bones,selected,skin);finishStroke();stop();snapshot();bones=next.bones;skin=next.skin;if(path.length===2){owners=owners.map(owner=>owner===root?'':owner);delete partNames[root];activeChain=chainPaths(bones).length?bones[chainPaths(bones)[0][0]].name:'';}creating=false;
+    const root=activeChain,oldPaths=chainPaths(bones),path=oldPaths.find(p=>p.includes(selected as number))!;const next=deleteRestBone(bones,selected,skin);finishStroke();stop();snapshot();bones=next.bones;skin=next.skin;if(path.length===2){owners=owners.map(owner=>owner===root?'':owner);delete partNames[root];hairWalkLag.delete(root);activeChain=chainPaths(bones).length?bones[chainPaths(bones)[0][0]].name:'';}creating=false;
     if(bones.length){selected=activePath()[0];chainEndpoints();}
     else{selected='anchor';anchorSet=tipSet=false;}
     el<HTMLInputElement>('segments').value=String(bones.length?bones.length-2:1);rebuild();updateMarkers();
@@ -581,6 +589,12 @@ el('applySegments').onclick=()=>{try{
   const mapped={skinIndices:skin!.skinIndices.map(id=>remap.get(id)??0),skinWeights:[...skin!.skinWeights]};skin=skinForBones(geometry,mask,bones,mapped,touched,owners);selected=offset+1;rebuild();status('Звенья этой части изменены. Остальные части сохранены.');
 }catch(error){status((error as Error).message,true);}};
 el<HTMLSelectElement>('chainSelect').onchange=()=>{creating=false;activeChain=el<HTMLSelectElement>('chainSelect').value;selected=activePath()[0]??'anchor';stop();syncSelection();};
+el<HTMLInputElement>('hairWalkLag').onchange=()=>{
+ if(creating||activePath().length<2)return;
+ snapshot();
+ if(el<HTMLInputElement>('hairWalkLag').checked)hairWalkLag.add(activeChain);
+ else hairWalkLag.delete(activeChain);
+};
 el<HTMLInputElement>('chainName').onchange=()=>{if(!activeChain||creating)return;snapshot();partNames[activeChain]=el<HTMLInputElement>('chainName').value.trim()||'Часть';syncSelection();};
 el<HTMLInputElement>('weight').oninput=()=>el('weightValue').textContent=el<HTMLInputElement>('weight').value+'%';
 el('tabBones').onclick=()=>setMode('bone');el('tabWeights').onclick=()=>{el<HTMLInputElement>('weightHeatmap').checked=heatmapPreference;setMode('paint');};el('tabCheck').onclick=()=>{finishStroke();if(mode!=='check')stop();mode='check';showPanel('Check');syncSelection();status('Включи симуляцию и подвигай предмет.');};
@@ -610,18 +624,32 @@ async function physics(dt:number){
   if(!running||!bones.length||!mesh)return;physicsPending+=dt;if(physicsBusy)return;physicsBusy=true;const frameRevision=revision;
   try{await ensureSimulation();dt=physicsPending;physicsPending=0;const position=mesh!.getWorldPosition(new THREE.Vector3());
     let result:any;
-    if(settings().solver!=='legacy')result=await api.get('step')(Math.min(dt,10),position.x,position.y,position.z,yaw,worldOrientation());
+    if(settings().solver!=='legacy'){
+      const contact=fitting.enabled&&(imported?.catalogType??imported?.itemType)==='hair'&&settings().solver==='v1-sync'
+       ? fitting.hairContactFrames().flatMap(({bounds,world})=>{
+        const center=bounds.getCenter(new THREE.Vector3()).applyMatrix4(world);
+        const m=world.elements;
+        return [...center.toArray(),m[0],m[4],m[8],m[1],m[5],m[9],m[2],m[6],m[10],
+         ...bounds.getSize(new THREE.Vector3()).multiplyScalar(.5).toArray()];
+       }).join(','):undefined;
+      result=await api.get('step')(Math.min(dt,10),position.x,position.y,position.z,yaw,worldOrientation(),contact,
+       contact&&fitting.moving&&fitting.height===0
+        ? chainPaths(bones).filter(path=>hairWalkLag.has(bones[path[0]].name)).map(path=>path[0]+1).join(',')
+        : '',
+       Math.sin(fitting.yaw),Math.cos(fitting.yaw),fitting.height>0||fitting.keys.has('Space'),contact&&fitting.hairNeckHeight());
+    }
     else{const steps=Math.max(1,Math.ceil(Math.min(dt,.05)/(1/60)));
     for(let i=0;i<steps;i++)result=await api.get('step')(Math.min(dt,.05)/steps,position.x,position.y,position.z,yaw,worldOrientation());}
     if(!running||!mesh||frameRevision!==revision)return;const transforms:number[]=JSON.parse(result[0]);const matrix=new THREE.Matrix4();
     mesh.skeleton.bones.forEach((bone,i)=>{const a=transforms.slice(i*12,i*12+12);matrix.set(a[3],a[4],a[5],a[0],a[6],a[7],a[8],a[1],a[9],a[10],a[11],a[2],0,0,0,1);matrix.decompose(bone.position,bone.quaternion,bone.scale);});
   }catch(error){stop();status('Симуляция остановлена: '+(error as Error).message,true);}finally{physicsBusy=false;}
 }
-renderer.setAnimationLoop(()=>{flushBrush();if(pendingHover){const event=pendingHover;pendingHover=null;hoverWeights(event);}const time=performance.now(),dt=Math.max(.001,(time-previousTime)/1000);previousTime=time;if(fitting.enabled)updateFitting(dt);if(!fitting.shiftLock)controls.update();updateMarkers();void physics(dt);renderer.render(scene,camera);});
+renderer.setAnimationLoop(()=>{const time=performance.now(),dt=Math.max(.001,(time-previousTime)/1000);previousTime=time;flushBrush();if(pendingHover){const event=pendingHover;pendingHover=null;hoverWeights(event);}if(fitting.enabled)updateFitting(dt);if(!fitting.shiftLock)controls.update();updateMarkers();void physics(dt);renderer.render(scene,camera);});
 
 if(window.workshop?.testMode)window.workshopInspect=()=>{
   mesh?.updateWorldMatrix(true,true);mesh?.updateMatrixWorld(true);mesh?.skeleton.update();
-  return {project:project(),running,fitting:{enabled:fitting.enabled,shiftLock:fitting.shiftLock,position:fitting.rig.position.toArray(),yaw:fitting.yaw,keys:[...fitting.keys]},boneMarkersVisible:boneMarkers.visible,motion:motion.toArray(),yaw,cameraWorld:camera.matrixWorld.toArray(),cameraProjection:camera.projectionMatrix.toArray(),cameraTarget:controls.target.toArray(),cameraLimits:[controls.minDistance,controls.maxDistance],meshWorld:mesh?.matrixWorld.toArray(),worldBones:mesh?.skeleton.bones.map(b=>b.getWorldPosition(new THREE.Vector3()).toArray()),worldVertices:geometry?.positions.filter((_,i)=>i%3===0).map((_,i)=>mesh!.localToWorld(mesh!.getVertexPosition(i,new THREE.Vector3())).toArray()),markerPositions:boneMarkers.children.map(m=>m.position.toArray())};
+  const torso=mesh&&fitting.enabled?fitting.hairTorso(mesh):null;
+  return {torso:torso?{min:torso.bounds.min.toArray(),max:torso.bounds.max.toArray(),fromWorld:torso.fromMesh.multiply(mesh!.matrixWorld.clone().invert()).toArray()}:null,project:project(),running,fitting:{enabled:fitting.enabled,shiftLock:fitting.shiftLock,position:fitting.rig.position.toArray(),yaw:fitting.yaw,tilt:fitting.tilt,keys:[...fitting.keys]},boneMarkersVisible:boneMarkers.visible,motion:motion.toArray(),yaw,cameraWorld:camera.matrixWorld.toArray(),cameraProjection:camera.projectionMatrix.toArray(),cameraTarget:controls.target.toArray(),cameraLimits:[controls.minDistance,controls.maxDistance],meshWorld:mesh?.matrixWorld.toArray(),worldBones:mesh?.skeleton.bones.map(b=>b.getWorldPosition(new THREE.Vector3()).toArray()),worldVertices:geometry?.positions.filter((_,i)=>i%3===0).map((_,i)=>mesh!.localToWorld(mesh!.getVertexPosition(i,new THREE.Vector3())).toArray()),markerPositions:boneMarkers.children.map(m=>m.position.toArray())};
 };
 
 
@@ -643,7 +671,11 @@ el<HTMLInputElement>('tryOn').onchange=()=>void action(async()=>{
  while(physicsBusy)await new Promise(requestAnimationFrame);
  try{startFitting();await ensureSimulation();running=true;syncSelection();el('simulate').textContent='Остановить симуляцию';el('simulate').classList.add('active');status('Примерка включена.');}catch(e){stop();throw e;}
 });
-el('fittingHome').onclick=()=>{const old=fitting.rig.position.clone();fitting.reset();camera.position.sub(old);controls.target.sub(old);updateFitting(0);needInit=true;renderer.domElement.focus();};
+el<HTMLSelectElement>('fittingTilt').onchange=()=>{
+ fitting.tiltTarget=Number(el<HTMLSelectElement>('fittingTilt').value)*Math.PI/2;
+ renderer.domElement.focus();
+};
+el('fittingHome').onclick=()=>{const old=fitting.position.clone().setY(fitting.height);fitting.reset();el<HTMLSelectElement>('fittingTilt').value='0';camera.position.sub(old);controls.target.sub(old);updateFitting(0);needInit=true;renderer.domElement.focus();};
 el('fittingShiftLock').onclick=()=>void toggleFittingLock();
 document.addEventListener('pointerlockchange',()=>{if(document.pointerLockElement!==renderer.domElement){setFittingLock(false);fitting.keys.clear();}});
 document.addEventListener('mousemove',event=>{if(fitting.shiftLock&&(document.pointerLockElement===renderer.domElement||document.activeElement===renderer.domElement&&event.target===renderer.domElement)){lockYaw-=event.movementX*.0025;lockPitch=THREE.MathUtils.clamp(lockPitch+event.movementY*.0025,-.8,1.2);}});

@@ -86,10 +86,32 @@ local function initialize(positionsText,parentsText,rotationsText,stiffness,damp
     for i,parentIndex in ipairs(parents) do if parentIndex==0 then table.insert(roots,bones[i]) end end
     controller=loadSolver(solverMode).new(part,roots);controller.InRange=true
     for _,tree in ipairs(controller.ParticleTrees) do tree.ObjectPreviousPosition=part.Position end
+    hairContactFrames=nil
     lastPosition=part.Position
     return #bones
 end
-local function step(dt,x,y,z,yaw,orientationText)
+local function step(dt,x,y,z,yaw,orientationText,contactText,lagText,backX,backZ,jumping,neckY)
+    table.clear(workshopLagRoots)
+    for index in (lagText or ''):gmatch('%d+') do
+        local bone=bones[tonumber(index)]
+        if bone then workshopLagRoots[bone.Name]=true end
+    end
+    workshopLagBack=backX and vec(backX,0,backZ) or nil
+    local previousFrames=hairContactFrames
+    hairContactFrames=nil
+    if contactText then
+        local values=numbers(contactText)
+        assert(#values==30,'Invalid hair contact frames')
+        hairContactFrames={}
+        for i=1,30,15 do
+            local frame=cf(vec(values[i],values[i+1],values[i+2]),{table.unpack(values,i+3,i+11)})
+            local index=#hairContactFrames+1
+            local previous=previousFrames and previousFrames[index].frame
+            if previous and (previous.Position-frame.Position).Magnitude>1 then previous=nil end
+            hairContactFrames[index]={frame=frame,inverse=frame:Inverse(),half=vec(values[i+12],values[i+13],values[i+14]),
+                previous=previous,neckY=index==2 and neckY or nil,shoulderMargin=index==2 and .09 or 0,jumpShoulder=index==2 and jumping==true}
+        end
+    end
     assert(controller and dt==dt and dt>0 and dt<=(solverMode~='legacy'and 10 or .1))
     local position=vec(x,y,z)
     part.CFrame=CFrame.new(position)*CFrame.Angles(0,yaw,0)
