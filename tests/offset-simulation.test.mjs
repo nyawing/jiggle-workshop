@@ -10,7 +10,7 @@ const js=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES20
 const {createChain,deleteRestBone,moveRestBone,makeSkinned,rebindRest,skinForBones}=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
 const geometry={positions:[0,1,0,.2,0,0,.1,-1,0],normals:[0,0,1,0,0,1,0,0,1],uv:[0,0,1,0,0,1],indices:[0,1,2],rigged:false};
 
-// Start and restart at a moved/yawed off-centre mesh, then delete a node.
+// Запускаем и перезапускаем симуляцию смещённого и повёрнутого меша с нецентральным началом координат, затем удаляем узел.
 test('SmartBone rest frames stay mesh-local when initialized at an arbitrary mesh transform and restarted after reset/deletion',async()=>{
   const offsetGeometry={...geometry,positions:geometry.positions.map((n,i)=>n+[2.4,-1.7,.8][i%3])};
   const chain=createChain(new THREE.Vector3(2.6,.1,.9),new THREE.Vector3(2.4,-3.3,.6),3);

@@ -1,4 +1,4 @@
--- Only serialize the model; never execute scripts found inside it.
+-- Только сериализуем модель; скрипты внутри неё не выполняем.
 local input, output, inputFormat, outputFormat = ...
 local objects = fs.read(input, inputFormat)
 -- RBXMX represents BrickColor with an <int> element. Without a descriptor,

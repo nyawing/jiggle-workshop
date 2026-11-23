@@ -1,4 +1,4 @@
-// Read-only comparison in an isolated app; never touches the user's project.
+// Сравнение только для чтения в изолированном приложении; проект пользователя не затрагивается.
 import {_electron as electron} from 'playwright';
 import {readFile,mkdir} from 'node:fs/promises';
 import path from 'node:path';

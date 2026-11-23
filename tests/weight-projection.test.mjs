@@ -7,7 +7,7 @@ const source=await readFile(new URL('../src/weight-projection.ts',import.meta.ur
 const js=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText.replace(/(['"])three\1/g,JSON.stringify(import.meta.resolve('three')));
 const {WeightProjection}=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
 function fixture(){
-  // Identical overlapping triangles, front at z=0 and back at z=-1.
+  // Одинаковые перекрывающиеся треугольники: передний при z=0, задний при z=-1.
   const positions=[-.8,-.8,0,.8,-.8,0,0,.8,0, -.8,-.8,-1,.8,-.8,-1,0,.8,-1];
   const geometry={positions,indices:[0,1,2,3,4,5],normals:[],uv:[],rigged:false};
   const bg=new THREE.BufferGeometry();

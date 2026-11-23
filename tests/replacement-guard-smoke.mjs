@@ -1,4 +1,4 @@
-// Exercise the real renderer in a separate invisible window, never user's work.
+// Проверяем настоящий редактор в отдельном невидимом окне, не затрагивая работу пользователя.
 import {_electron as electron} from 'playwright';
 import assert from 'node:assert/strict';
 import path from 'node:path';

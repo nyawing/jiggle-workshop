@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-// Interpolate scalar influences before applying the palette in fragment space.
+// Интерполируем скалярные влияния до применения палитры во фрагментном шейдере.
 export function weightDisplayMaterial(){
  const material=new THREE.MeshBasicMaterial({color:0xffffff});
  material.onBeforeCompile=shader=>{

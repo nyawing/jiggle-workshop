@@ -198,7 +198,7 @@ def fetch_asset(uri, folder):
     number=match[1]
     for path in [Path(folder)/(number+'.mesh'), REPO/'Webserver/www/v1/asset/cache'/number]:
         if path.is_file(): return bounded_file(path)
-    # Never follow asset-controlled URLs or redirects to arbitrary hosts.
+    # Не переходить по URL из ассета и перенаправлениям на произвольные серверы.
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self,*args): return None
     opener=urllib.request.build_opener(NoRedirect())
@@ -516,7 +516,7 @@ def build_skinned(project):
         vertices+=struct.pack('<3f3f2f4b4B',*g['positions'][i*3:i*3+3],*g['normals'][i*3:i*3+3],*g['uv'][i*2:i*2+2],0,0,0,127,255,255,255,255)
         weights=project['skinWeights'][i*4:i*4+4]
         quant=[int(w*255) for w in weights]
-        # Give the rounding remainder to the largest influence, keeping sum 255.
+        # Остаток округления отдаём наибольшему влиянию, сохраняя сумму 255.
         quant[max(range(4),key=lambda k:weights[k])]+=255-sum(quant)
         skin+=bytes(project['skinIndices'][i*4:i*4+4])+bytes(quant)
     for bone in bones:
@@ -610,7 +610,7 @@ def export_asset(source,path,project):
         v=project['settings'][name]
         if not isinstance(v,(int,float)) or not math.isfinite(v) or not 0<=v<=1: raise ValueError('Некорректные настройки физики.')
     doc,accessory=read_model(source);handle,old_mesh=handles(accessory)
-    # Keep attachments and accessory identity; turn a rigid Handle into MeshPart.
+    # Сохраняем крепления и свойства аксессуара; преобразуем жёсткий Handle в MeshPart.
     texture=value(old_mesh,'TextureID',value(old_mesh,'TextureId'))
     if old_mesh is not handle: handle.remove(old_mesh)
     handle.set('class','MeshPart')

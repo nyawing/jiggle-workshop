@@ -84,7 +84,7 @@ local function initialize(positionsText,parentsText,rotationsText,stiffness,damp
             end
         end
     end
-    -- One trusted controller already supports independent root trees.
+    -- Один проверенный контроллер уже поддерживает независимые корневые деревья.
     local roots={}
     for i,parentIndex in ipairs(parents) do if parentIndex==0 then table.insert(roots,bones[i]) end end
     controller=loadSolver(solverMode).new(part,roots);controller.InRange=true

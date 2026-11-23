@@ -47,7 +47,7 @@ export class TryOn {
     this.moving=direction.lengthSq()>0;
     if(this.moving){direction.normalize();this.position.addScaledVector(direction,dt*16);const goal=Math.atan2(-direction.x,-direction.z),angle=Math.atan2(Math.sin(goal-this.yaw),Math.cos(goal-this.yaw));this.yaw+=THREE.MathUtils.clamp(angle,-dt*10,dt*10);}
     if(this.shiftLock)this.yaw=cameraYaw;
-    // Keep the avatar in the visible test yard without a discontinuous wrap.
+    // Удерживаем аватар в видимой тестовой зоне без скачкообразного переноса между её краями.
     this.position.x=THREE.MathUtils.clamp(this.position.x,-100,100);this.position.z=THREE.MathUtils.clamp(this.position.z,-100,100);
     if(this.keys.has('Space'))this.jump();
     if(this.height>0||this.velocity>0){this.velocity-=196.2*dt;this.height=Math.max(0,this.height+this.velocity*dt);if(this.height===0)this.velocity=0;}
