@@ -1,7 +1,7 @@
--- Sample each link as in the cape solver. The authored surface sets the inner
--- boundary where the strand starts inside the avatar's simplified body bounds.
+-- Проверяем несколько точек каждого звена, как в солвере плаща. Если в исходной позе
+-- прядь уже внутри упрощённой границы тела, её исходная поверхность задаёт предел проникновения.
 local hairContactFrames
--- Use the authored chain in torso space so classification stays stable as it swings.
+-- Определяем сторону по исходной цепочке в координатах торса, чтобы она не менялась при раскачивании.
 local function hairGravityRelease(tree,torso)
     torso=torso or hairContactFrames and hairContactFrames[2]
     if not torso then return 0 end
@@ -122,13 +122,13 @@ local function constrainHairBend(point,parent,frontLock)
             local top=half.Y+(body.shoulderMargin or 0)
             local width=alongX and half.Z-math.abs(p.Z) or half.X-math.abs(p.X)
             if body.jumpShoulder and not alongX and side<0 and rest.Y<=top then
-                -- Follow front locks over the top of the moving shoulder
-                -- before they can enter the chest from above.
+                -- Учитываем верхнюю поверхность движущегося плеча, чтобы передняя прядь
+                -- не прошла в грудь сверху.
                 top=top+.22
                 width=width+.13
             end
-            -- Protect the front of the upper torso when independently tilted
-            -- hair is hanging past the neck. Leave upright contact unchanged.
+            -- Учитываем переднюю поверхность верхней части торса, когда из-за наклона головы
+            -- волосы свисают ниже шеи. В прямой позе контакт работает по-прежнему.
             local neckContact=body.neckContact or 0
             local frontPose=poseContact>0 and side<0 and not alongX and (stableFront or rest.Y<=half.Y+.35)
             local frontShoulder=neckContact>0 and side<0 and not alongX and
@@ -144,8 +144,8 @@ local function constrainHairBend(point,parent,frontLock)
             local edge=math.min(top-p.Y,p.Y+half.Y,width)
             local clearance=body.rearHeadContact and not alongX and side>0 and .002 or .012
             local limit=math.min(alongX and half.X or half.Z,restDepth)-clearance
-            -- Account for the visible hair around a front link already outside
-            -- the chest in the authored pose.
+            -- Учитываем толщину видимой пряди вокруг переднего звена, которое в исходной позе
+            -- уже находится снаружи груди.
             if body.forwardWalk and not alongX and side<0 and restDepth>=half.Z then
                 limit=math.max(limit,half.Z+.05)
             end
@@ -164,8 +164,8 @@ local function constrainHairBend(point,parent,frontLock)
             end
         end
         if bestT then
-            -- Resolve one deepest sample per body. Repeated partial pushes on a
-            -- link can reintroduce penetration and alternating velocity.
+            -- Для каждой части тела исправляем одно самое глубокое проникновение. Несколько
+            -- частичных выталкиваний звена могут вернуть проникновение и вызвать дрожь.
             local a=parent.Anchored and 0 or 1-bestT
             local normal=bestNormal
             local offset=math.min(.12,bestDepth/(a*a+bestT*bestT))
