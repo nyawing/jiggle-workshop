@@ -13,7 +13,7 @@ test('native V2 plus shared sampled-root wrapper runs in Workshop and accepts li
   for(let i=1;i<=120;i++)pose=JSON.parse((await api.get('step')(1/60,i*16/60,Math.sin(i/60*3),0,0,identity))[0]);
   assert.equal(pose.length,36);assert(pose.every(Number.isFinite));
   assert(pose.slice(24+3).some((n,i)=>Math.abs(n-[1,0,0,0,1,0,0,0,1][i])>.001),'weighted terminal endpoint must rotate');
-  // Studio 2021, shared native V2 + sampled root, 120 steps at 60 Hz, three visible bones + unweighted calculation tail, root x=16t/y=sin(3t).
+  // Эталон Studio 2021: 120 шагов при 60 Гц, три видимые кости и хвост без веса. Корень движется по x=16t, y=sin(3t).
   const expected=[
     0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1,
     0, 1.5, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1,
