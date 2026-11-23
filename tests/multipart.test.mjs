@@ -41,7 +41,7 @@ test('one real SmartBone controller drives three independent trees; weak ears an
       mesh.skeleton.bones.forEach((b,i)=>{const a=transforms.slice(i*12,i*12+12);new THREE.Matrix4().set(a[3],a[4],a[5],a[0],a[6],a[7],a[8],a[1],a[9],a[10],a[11],a[2],0,0,0,1).decompose(b.position,b.quaternion,b.scale);});mesh.updateMatrixWorld(true);mesh.skeleton.update();
       for(let i=0;i<3;i++)maximum[i]=Math.max(maximum[i],mesh.getVertexPosition(i,v(0,0)).distanceTo(new THREE.Vector3().fromArray(geometry.positions,i*3)));
       assert(mesh.getVertexPosition(3,v(0,0)).distanceTo(v(0,1.3))<1e-6);
-      // Different lengths/root frames must not receive a copied first-tree pose.
+      // Разная длина и корневые системы координат не должны получать копию позы первого дерева.
       independent ||= !mesh.skeleton.bones[2].quaternion.equals(mesh.skeleton.bones[4].quaternion);
       for(const root of [1,3,5])assert(mesh.skeleton.bones[root].getWorldPosition(v(0,0)).distanceTo(new THREE.Vector3().fromArray(bones[root].position))<1e-6);
     }

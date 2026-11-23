@@ -1,4 +1,4 @@
-// Invisible app only. Live catalog import is read-only; export remains local.
+// Только невидимое приложение. Импорт из действующего каталога выполняется без изменений на сервере; экспорт остаётся локальным.
 import {_electron as electron} from 'playwright';
 import assert from 'node:assert/strict';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
@@ -45,7 +45,7 @@ try{
  Object.assign(project,skinForBones(project.geometry,new Float32Array(project.mask),project.bones,undefined,undefined,project.owners));
  const weightedFile=path.join(output,'cow-weighted.jiggle.json');await writeFile(weightedFile,JSON.stringify(project));await open(weightedFile);await frames(3);
  assert.deepEqual((await inspect()).project.owners,project.owners);assert.deepEqual((await inspect()).project.partNames,project.partNames);
- // Rest edits, count changes and deletion must preserve every other part.
+ // Изменение исходной позы, количества точек и удаление должны сохранять все другие части.
  await page.locator('#chainSelect').selectOption(roots[0]);const before=(await inspect()).project;await setPoint(2,[-.9,-.33,-.04]);
  let edited=(await inspect()).project;assert.deepEqual(edited.bones.slice(3),before.bones.slice(3));assert.deepEqual(edited.skinWeights,before.skinWeights);assert.deepEqual(edited.skinIndices,before.skinIndices);
  await page.locator('#undo').click();assert.deepEqual((await inspect()).project.bones,before.bones);
@@ -56,7 +56,7 @@ try{
  assert.equal(edited.bones.length,7);for(let i=0;i<6624;i++)if(project.owners[i]!==roots[1])assert.deepEqual(namedRow(edited,i),namedRow(project,i));
  assert(edited.owners.every(owner=>owner!==roots[1]));assert.deepEqual(edited.mask,project.mask);
  await page.locator('#undo').click();assert.deepEqual((await inspect()).project.bones,project.bones);assert.deepEqual((await inspect()).project.skinWeights,project.skinWeights);
- // Real brush on an ear: set a lower target and keep bell rows unchanged.
+ // Настоящая кисть на ухе: уменьшаем целевой вес, сохраняя строки весов колокольчиков.
  await page.locator('#chainSelect').selectOption(roots[2]);await tab('Weights');await page.locator('#weight').fill('10');await page.locator('#radius').fill('45');await frames(3);state=await inspect();const box=await page.locator('canvas[data-engine]').boundingBox();
  const camera=new THREE.PerspectiveCamera();camera.matrixWorld.fromArray(state.cameraWorld);camera.matrixWorldInverse.copy(camera.matrixWorld).invert();camera.projectionMatrix.fromArray(state.cameraProjection);camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
  const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(project.geometry.positions,3));geo.setIndex(project.geometry.indices);const surface=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({side:THREE.DoubleSide}));surface.matrixAutoUpdate=false;surface.matrix.fromArray(state.meshWorld);surface.updateMatrixWorld(true);const ray=new THREE.Raycaster();let clicked=false;
@@ -72,7 +72,7 @@ try{
  await page.keyboard.press('Control+z');assert.deepEqual((await inspect()).project.skinWeights,project.skinWeights);
  await page.locator('#erase').click();assert(await clickPart(roots[0]));assert.deepEqual((await inspect()).project.skinWeights,project.skinWeights,'erasing with ear selected must skip the bell');assert.deepEqual((await inspect()).project.owners,project.owners);
  geo.dispose();surface.material.dispose();
- // Both bells and both ears use the same trusted controller, with rigid zeros.
+ // Оба колокольчика и оба уха используют один проверенный контроллер, сохраняя жёсткие нулевые веса.
  await tab('Check');await page.locator('#simulate').click();await page.waitForFunction(()=>document.querySelector('#simulate').textContent==='Остановить симуляцию');
  await page.mouse.move(box.x+box.width*.5,box.y+box.height*.5);await page.mouse.down();await page.mouse.move(box.x+box.width*.64,box.y+box.height*.55,{steps:25});await page.mouse.up();await page.mouse.wheel(0,90);await frames(4);state=await inspect();assert(state.running);
  const world=new THREE.Matrix4().fromArray(state.meshWorld),maximum=[0,0,0,0];let rigidCount=0;

@@ -92,7 +92,7 @@ export function automaticWeights(geometry:GeometryData,bones:BoneData[],strength
         const start=chain.points[j],delta=chain.points[j+1].clone().sub(start);
         const t=THREE.MathUtils.clamp(point.clone().sub(start).dot(delta)/delta.lengthSq(),0,1);
         const distance=point.distanceTo(start.clone().addScaledVector(delta,t));
-        // Compare scale-relative distances so short ears do not lose to long tails.
+        // Сравниваем расстояния с учётом масштаба, чтобы короткие уши не проигрывали длинным хвостам.
         const score=distance/radius;
         if(score<1&&score<best){
           best=score;owner=bones[chain.path[0]].name;
@@ -105,7 +105,7 @@ export function automaticWeights(geometry:GeometryData,bones:BoneData[],strength
   }
   return {mask,owners,skin:skinForBones(geometry,mask,bones,undefined,undefined,owners)};
 }
-// Only a brush's touched vertices are recalculated. Rest edits never call this.
+// Пересчитываем только вершины, затронутые кистью. Правки исходной позы эту функцию не вызывают.
 export function skinForBones(geometry:GeometryData,mask:Float32Array,bones:BoneData[],previous?:SkinData,touched?:Set<number>,owners?:string[]):SkinData{
   const ids:number[]=[],weights:number[]=[];
   const paths=chainPaths(bones),roots=new Map(paths.map(p=>[bones[p[0]].name,p]));
@@ -113,7 +113,7 @@ export function skinForBones(geometry:GeometryData,mask:Float32Array,bones:BoneD
     if(previous&&touched&&!touched.has(i)){ids.push(...previous.skinIndices.slice(i*4,i*4+4));weights.push(...previous.skinWeights.slice(i*4,i*4+4));continue;}
     const point=new THREE.Vector3().fromArray(geometry.positions,i*3);
     const m=THREE.MathUtils.clamp(mask[i],0,1);
-    // Zero flexible weight is 100% rigid influence, not a zero-sum skin row.
+    // Нулевой гибкий вес означает полное жёсткое влияние, а не нулевую сумму весов вершины.
     const path=owners?roots.get(owners[i]):undefined;
     if(m===0||(owners&&!path)){ids.push(0,0,0,0);weights.push(1,0,0,0);continue;}
     let lo=1,hi=2,blend=0,best=Infinity;

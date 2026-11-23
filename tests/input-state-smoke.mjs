@@ -1,4 +1,4 @@
-// Regression for interrupted two-click creation, undo and stale gizmo axes.
+// Проверка прерванного создания двумя кликами, отмены и устаревших осей манипулятора.
 import {_electron as electron} from 'playwright';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -26,13 +26,13 @@ try{
   await page.mouse.click(box.x+box.width*.55,box.y+box.height*.35);
   await page.keyboard.press('Control+z');await page.keyboard.press('Control+z');
   assert.deepEqual((await state()).project.bones,baseline.project.bones);
-  // Selecting the existing end must work after cancelling the draft twice.
+  // После двойной отмены черновика выбор существующего конца должен работать.
   const current=await state();
   const matrix=new THREE.Matrix4().fromArray(current.cameraProjection).multiply(new THREE.Matrix4().fromArray(current.cameraWorld).invert());
   const point=new THREE.Vector3().fromArray(current.worldBones[2]).applyMatrix4(matrix);
   await page.mouse.click(box.x+(point.x+1)*box.width/2,box.y+(1-point.y)*box.height/2);
   assert.equal(await page.locator('#boneSelect').inputValue(),'2');
-  // Hover the gizmo before switching to painting: its old axis cannot block input.
+  // Наводим курсор на манипулятор перед покраской: старая активная ось не должна блокировать ввод.
   await page.mouse.move(box.x+(point.x+1)*box.width/2+15,box.y+(1-point.y)*box.height/2);
   await page.locator('#tabWeights').click();
   await page.mouse.move(box.x+box.width*.5,box.y+box.height*.5);

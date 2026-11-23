@@ -1,4 +1,4 @@
-// Automated checks of our own app in an invisible test window, not the desktop.
+// Автоматические проверки нашего приложения в невидимом тестовом окне, а не на рабочем столе.
 import {_electron as electron} from 'playwright';
 import assert from 'node:assert/strict';
 import {mkdir,mkdtemp,copyFile,writeFile,readFile} from 'node:fs/promises';
@@ -74,12 +74,12 @@ try{
   const box=await page.locator('canvas[data-engine]').boundingBox();
   await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.wheel(0,80);
   await page.mouse.down();await page.mouse.move(box.x+box.width*.65,box.y+box.height*.45,{steps:20});await page.mouse.up();
-  // Await simulation updates by observing frames rather than sleeping blindly.
+  // Ожидаем обновления симуляции по смене кадров, без слепых задержек.
   await page.evaluate(()=>new Promise(resolve=>{let frames=0;function next(){if(++frames===90)resolve(true);else requestAnimationFrame(next);}requestAnimationFrame(next);}));
   assert.equal(await page.locator('#simulate').textContent(),'Остановить симуляцию',await page.locator('#status').textContent());
   await page.screenshot({path:path.join(output,'simulation.png')});
   await (await control('reset')).click();assert.equal(await page.locator('#simulate').textContent(),'Включить симуляцию');await (await control('erase')).click();
-  // Exercise the actual binary importer, dialogs, persistence and exporter.
+  // Проверяем настоящий двоичный импортёр, диалоги, сохранение и экспорт.
   const temp=await mkdtemp(path.join(os.tmpdir(),'workshop-test-'));
   const fixture=path.join(temp,'fixture.rbxm');await copyFile(path.join(root,'tests/fixture.rbxm'),fixture);
   const raw=Buffer.alloc(25+3*40+12);raw.write('version 2.00\n');raw.writeUInt16LE(12,13);raw[15]=40;raw[16]=12;raw.writeUInt32LE(3,17);raw.writeUInt32LE(1,21);
@@ -97,7 +97,7 @@ try{
   const saved=path.join(temp,'test.jiggle.json');await saveTo(saved);await (await control('save')).click();
   await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Проект сохранён:'));
   const baseline=JSON.parse(await readFile(saved,'utf8'));assert.ok(baseline.sourceBase64);
-  // Open a partially painted project: edited bones must never repaint its zero rows.
+  // Открываем частично покрашенный проект: изменение костей не должно перекрашивать нулевые строки весов.
   baseline.mask=[0,1,0];baseline.skinWeights=[1,0,0,0,...baseline.skinWeights.slice(4,8),1,0,0,0];
   await writeFile(saved,JSON.stringify(baseline));
   await openFile(saved);await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Проект восстановлен.'));
@@ -111,10 +111,10 @@ try{
   const view=await page.locator('canvas[data-engine]').boundingBox();
   const camera=new THREE.PerspectiveCamera(38,view.width/view.height,.002,200);camera.position.set(2.8,1,4.8);camera.lookAt(0,0,0);camera.updateMatrixWorld(true);
   const screen=p=>{const v=p.clone().project(camera);return {x:view.x+(v.x+1)*view.width/2,y:view.y+(1-v.y)*view.height/2};};
-  // Select an unoccluded bone by clicking its visible-through-mesh marker.
+  // Выбираем неперекрытую кость кликом по маркеру, видимому сквозь меш.
   const tipPoint=screen(new THREE.Vector3(0,-1,0));await rendered();await page.mouse.click(tipPoint.x,tipPoint.y);assert.equal(await page.locator('#boneSelect').inputValue(),'4');
   await (await control('boneSelect')).selectOption('2');await rendered();
-  // Drag actual TransformControls arrows on all axes, not synthetic handlers.
+  // Перетаскиваем настоящие стрелки TransformControls по всем осям, не подменяя обработчики.
   const p=new THREE.Vector3(.12,.25,.08),factor=p.distanceTo(camera.position)*1.9*Math.tan(38*Math.PI/360)*.8/4;
   for(const [axisIndex,axis] of ['X','Y','Z'].entries()){
     const direction=new THREE.Vector3().setComponent(axisIndex,1);
@@ -123,7 +123,7 @@ try{
     for(const [i,name] of ['X','Y','Z'].entries())assert(Math.abs(Number(await page.locator('#bone'+name).inputValue())-(p.getComponent(i)+(i===axisIndex?.2:0)))<(i===axisIndex?.015:1e-5),axis+' arrow should move only '+axis);
     await (await control('undo')).click();assert.equal(await page.locator('#boneX').inputValue(),'0.12');
   }
-  // Place away from the model silhouette; a surface raycast would miss here.
+  // Ставим точку за силуэтом модели, где луч не пересёк бы поверхность.
   await (await control('place')).click();await page.mouse.click(view.x+view.width*.18,view.y+view.height*.3);
   assert(Math.abs(Number(await page.locator('#boneX').inputValue()))>1,'plane placement must work outside mesh');
   await (await control('undo')).click();assert.equal(await page.locator('#boneX').inputValue(),'0.12');
@@ -162,20 +162,20 @@ try{
       assert((end.y-start.y)*dy>200,'mesh must follow vertical mouse direction');
       await page.mouse.wheel(0,90);await rendered();
       await (await control('reset')).click();await rendered();assertRestState(await inspect());
-      // Extra frames catch a pending async solver result overwriting reset.
+      // Дополнительные кадры выявляют перезапись сброса отложенным асинхронным результатом симуляции.
       await page.evaluate(()=>new Promise(resolve=>{let frames=0;function next(){if(++frames===12)resolve();else requestAnimationFrame(next);}requestAnimationFrame(next);}));
       assertRestState(await inspect());
     }
   }
   console.log('PASS mesh follows screen drag from both camera sides; repeated reset stops physics and preserves all actual rest vertices/bones/markers/weights.');
-  // Delete a selected middle node, retain survivor rest frames and undo exactly.
+  // Удаляем выбранный средний узел, сохраняем исходные системы координат остальных и точно отменяем изменение.
   await (await control('boneSelect')).selectOption('2');await (await control('boneSelect')).focus();await page.keyboard.press('Delete');await rendered();
   const deleted=await inspect();assert.equal(deleted.project.bones.length,4);assert.deepEqual(deleted.project.bones.map(b=>b.position),persisted.bones.filter((_,i)=>i!==2).map(b=>b.position));assert.deepEqual(deleted.project.skinWeights,persisted.skinWeights);assert.deepEqual(deleted.project.mask,persisted.mask);
   await page.keyboard.press('Control+z');await rendered();assertRestState(await inspect());
-  // The visible segment itself can be clicked, not only its endpoint sphere.
+  // Клик должен выбирать сам видимый отрезок, а не только шарик на его конце.
   const lineState=await inspect(),linePoint=new THREE.Vector3().fromArray(persisted.bones[1].position).lerp(new THREE.Vector3().fromArray(persisted.bones[2].position),.2).applyMatrix4(new THREE.Matrix4().fromArray(lineState.meshWorld));
   await (await control('boneSelect')).selectOption('4');await rendered();const lineScreen=screenPosition(await inspect(),linePoint.toArray());await page.mouse.click(lineScreen.x,lineScreen.y);assert.equal(await page.locator('#boneSelect').inputValue(),'2');
-  // Deleting the sole segment keeps paint, is undoable and persists as a draft.
+  // Удаление единственного отрезка сохраняет покраску, отменяется и сохраняется как черновик.
   await (await control('segments')).fill('1');await (await control('applySegments')).click();await (await control('boneSelect')).selectOption('2');
   const oneBefore=await inspect();await (await control('deleteBone')).click();await rendered();const empty=await inspect();assert.equal(empty.project.bones.length,0);assert.deepEqual(empty.project.mask,persisted.mask);assert.equal(await page.locator('#simulate').isEnabled(),false);assert.equal(await page.locator('#saveMesh').isEnabled(),false);
   const draft=path.join(temp,'deleted-bone-draft.jiggle.json');await saveTo(draft);await (await control('save')).click();await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Проект сохранён:'));
@@ -190,7 +190,7 @@ try{
   const migrated=(await inspect()).project;assert.equal(migrated.owners[1],'JiggleRoot');assert.deepEqual(migrated.skinWeights,legacy.skinWeights);assert.deepEqual(migrated.skinIndices,legacy.skinIndices);
   await saveTo(legacyFile);await (await control('save')).click();await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Проект сохранён:'));assert.deepEqual(JSON.parse(await readFile(legacyFile,'utf8')).skinWeights,legacy.skinWeights);
   console.log('PASS legacy project migration preserves exact rest and skin rows.');
-  // Edit a bone after moving/yawing an off-centre mesh, then reset and restart.
+  // Редактируем кость после смещения и поворота меша с нецентральным началом координат, затем сбрасываем и перезапускаем.
   const offsetProject=structuredClone(persisted),offset=[2.4,-1.7,.8];offsetProject.name='Offset rest edit';
   offsetProject.geometry.positions=offsetProject.geometry.positions.map((n,i)=>n+offset[i%3]);
   offsetProject.bones.slice(1).forEach(b=>b.position=b.position.map((n,i)=>n+offset[i]));
@@ -233,7 +233,7 @@ try{
     if(await page.locator('#boneAdvanced').getAttribute('open')!==null)await (await control('boneAdvanced > summary')).click();if(await page.locator('#advanced').getAttribute('open')!==null)await (await control('advanced > summary')).click();await page.locator('aside').evaluate(node=>node.scrollTop=0);await page.screenshot({path:path.join(output,'live-175567.png')});
     console.log('PASS live reference: actual accessory, texture, LOD0 geometry, chain and editable project.');
   }
-  // Use two nearby disconnected strips so a spherical brush would hit both.
+  // Две близкие несвязанные полосы позволяют проверить, что сферическая кисть ошибочно затронула бы обе.
   const brushProject=structuredClone(persisted);brushProject.name='Brush isolation';brushProject.itemType='hair';
   brushProject.geometry={positions:[-.4,-1,0,-.05,-1,0,-.05,1,0,-.4,1,0, 0,-1,0,.35,-1,0,.35,1,0,0,1,0],normals:Array(8).fill([0,0,1]).flat(),uv:Array(16).fill(0),indices:[0,1,2,0,2,3,4,5,6,4,6,7],rigged:false};
   brushProject.owners=Array(8).fill('');brushProject.mask=Array(8).fill(0);brushProject.skinIndices=Array(32).fill(0);brushProject.skinWeights=Array.from({length:32},(_,i)=>i%4===0?1:0);

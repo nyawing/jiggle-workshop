@@ -40,7 +40,7 @@ fileActions.style.borderLeft='0';fileActions.style.paddingLeft='0';
 el('saveMesh').hidden=true;el('advanced').hidden=true;
 document.querySelector('#empty h1')!.textContent='Загрузите аксессуар';
 document.querySelector('#empty p')!.textContent='Вставьте полную ссылку на предмет Roblox или Nyawing в поле сверху и нажмите «Загрузить».';
-// Keep everyday editing compact; precise positioning remains available on demand.
+// Обычное редактирование оставляем компактным; точное позиционирование доступно по запросу.
 el('undo').remove();
 el('brushAdvanced').querySelector('summary')!.textContent='Дополнительно';
 el('part').parentElement!.hidden=true;
@@ -53,7 +53,7 @@ const boneDetails=el('boneAdvanced');
 const coordinateTools=boneDetails.querySelector('.coordinates')!;
 while(coordinateTools.nextSibling)preciseTools.append(coordinateTools.nextSibling);
 preciseTools.prepend(coordinateTools);
-// The summary must precede the controls for native details keyboard behaviour.
+// Заголовок summary должен идти перед элементами управления, чтобы сохранить штатную работу details с клавиатуры.
 preciseTools.prepend(preciseTools.querySelector('summary')!);
 boneDetails.append(preciseTools);
 boneDetails.hidden=true;
@@ -73,7 +73,7 @@ const weightSettings=document.createElement('div');weightSettings.className='wei
 for(const id of ['weight','radius','brushStrength','brushHardness'])weightSettings.append(el(id).parentElement!);
 brushOptions.before(weightSettings);el('paint').parentElement!.append(el('smoothWeights'));el('paint').parentElement!.classList.add('weight-tools');
 el('weightActions').append(el('all'));el('brushAdvanced').hidden=true;
-// Compact controls: shortcuts live on the action itself, not in a help panel.
+// Компактное управление: горячие клавиши указаны на самих действиях, а не в отдельной панели справки.
 for(const [id,label] of [['chain','Новая цепочка · Ctrl+Q'],['mirrorChain','Отразить · Ctrl+D'],['paint','Кисть · V'],['erase','Ластик · E'],['selectBone','Выбрать · Q']])el(id).textContent=label;
 document.querySelectorAll<HTMLElement>('aside .help').forEach(node=>node.hidden=true);
 el('part').parentElement!.hidden=true;
@@ -103,7 +103,7 @@ renderer.domElement.addEventListener('wheel',event=>{
 scene.add(new THREE.HemisphereLight(0xe2edff,0x314355,2));const light=new THREE.DirectionalLight(0xffffff,3);light.position.set(5,8,6);scene.add(light);
 const body=new THREE.Group();scene.add(body);
 const transform=new TransformControls(camera,renderer.domElement);transform.setMode('translate');transform.setSpace('local');transform.setSize(.8);scene.add(transform.getHelper());
-// Draw selectable points above the translation axes, not underneath them.
+// Рисуем выбираемые точки поверх осей перемещения, а не под ними.
 transform.getHelper().traverse(node=>{if(node instanceof THREE.Mesh||node instanceof THREE.Line)node.renderOrder=4;});
 const boneProxy=new THREE.Object3D(),boneMarkers=new THREE.Group();scene.add(boneMarkers);
 const ray=new THREE.Raycaster(),pointer=new THREE.Vector2();
@@ -141,7 +141,7 @@ function confirmProjectReplacement(){
 function stop(){revision++;running=false;el('simulate').textContent='Включить симуляцию';el('simulate').classList.remove('active');if(mesh&&bones.length){rebindRest(mesh,bones);needInit=true;}syncSelection();updateMarkers();}
 function clearMesh(){revision++;transform.detach();boneProxy.removeFromParent();if(selectionDots){selectionDots.geometry.dispose();(selectionDots.material as THREE.Material).dispose();selectionDots.removeFromParent();selectionDots=null;}if(mesh){body.remove(mesh);mesh.geometry.dispose();mesh.skeleton.dispose();mesh=null;}if(helper){scene.remove(helper);(helper.geometry).dispose();(helper.material as THREE.Material).dispose();helper=null;}}
 function project(){if(!geometry)throw new Error('Сначала загрузите аксессуар.');return {version:1,itemType:imported?.itemType,name:imported?.name,sourceHash:imported?.sourceHash,editor:{through:el<HTMLInputElement>('throughBrush').checked,radius:Number(el<HTMLInputElement>('radius').value),strength:Number(el<HTMLInputElement>('brushStrength').value),hardness:Number(el<HTMLInputElement>('brushHardness').value),target:Number(el<HTMLInputElement>('weight').value),gradientFrom:Number(el<HTMLInputElement>('gradientFrom').value),surfaceSelection:[...surfaceSelection],isolated:el<HTMLInputElement>('isolateWeights').checked},texture:imported?.texture,appearance:imported?.appearance,geometry,bones:copyBones(bones),owners:[...owners],partNames:{...partNames},activeChain,anchorSet,tipSet,skinIndices:skin?.skinIndices??[],skinWeights:skin?.skinWeights??[],mask:Array.from(mask),anchor:anchor.toArray(),tip:tip.toArray(),settings:settings(),meshAssetId:el<HTMLInputElement>('assetId').value.trim()};}
-// Display the same scalar values the skin builder exports, with a fixed palette.
+// Отображаем те же скалярные значения, которые экспортирует построитель весов, с фиксированной палитрой.
 function colors(){
  if(!mesh||!geometry||!graph)return;
  const inWeights=['paint','erase','part','gradient'].includes(mode)&&!running;
@@ -210,7 +210,7 @@ function setPosition(position:THREE.Vector3,remember=true){
     if(remember){stop();snapshot();}else revision++;
     if(next){bones=next;chainEndpoints();rebindRest(mesh!,bones);needInit=true;}
     else {(selected==='anchor'?anchor:tip).copy(position);if(selected==='anchor')anchorSet=true;else tipSet=true;}
-    // Updating bind inverses preserves every rest vertex; weights are untouched.
+    // Обновление обратных матриц привязки сохраняет все вершины исходной позы; веса не меняются.
     boneProxy.position.copy(selectedPosition());
     for(const [i,axis] of ['X','Y','Z'].entries())el<HTMLInputElement>('bone'+axis).value=String(Number(position.getComponent(i).toFixed(5)));
     status('Положение сохранено в rest-позе. Веса не изменены.');
@@ -231,7 +231,7 @@ async function load(result:any){
   if(!result.geometry){status(result.warnings.join(' '),true);el('empty').style.display='grid';el('empty').querySelector('h1')!.textContent='Нужен файл геометрии';el('empty').querySelector('p')!.textContent='Меш не удалось загрузить. Выберите его .mesh вручную.';el('demo').textContent='Выбрать .mesh';return;}
   geometry=result.geometry;showWorkspace(true);graph=surfaceGraph(geometry!);projection=new WeightProjection(geometry!);mask=new Float32Array(geometry!.positions.length/3);owners=Array(mask.length).fill('');yaw=0;motion.set(0,0,0);
   if(result.texture){texture=await new THREE.TextureLoader().loadAsync(result.texture);texture.colorSpace=THREE.SRGBColorSpace;texture.flipY=false;}
-  // Inverted-hull accessories rely on backface culling for their outlines.
+  // Аксессуары с вывернутой оболочкой используют отсечение обратных граней для построения контура.
   material=new THREE.MeshStandardMaterial({color:0xffffff,map:texture,roughness:.65,metalness:.04,side:result.appearance?.doubleSided?THREE.DoubleSide:THREE.FrontSide,vertexColors:true});
   const bounds=new THREE.Box3().setFromArray(geometry!.positions);bounds.getCenter(center);bounds.getSize(size);
   anchor.set(center.x,bounds.max.y,center.z);tip.set(center.x,bounds.min.y,center.z);
@@ -304,7 +304,7 @@ function hoverWeights(event:PointerEvent){
  const candidates=brushCandidates(event,null),b=renderer.domElement.getBoundingClientRect();
  if(hoverCanvas.width!==Math.round(b.width)||hoverCanvas.height!==Math.round(b.height)){hoverCanvas.width=Math.round(b.width);hoverCanvas.height=Math.round(b.height);}
  hoverContext.clearRect(0,0,hoverCanvas.width,hoverCanvas.height);
- // Hover points are projected independently of the GPU's interpolated heatmap.
+ // Точки под курсором проецируются независимо от интерполированной на GPU карты весов.
  hoverContext.fillStyle='#e9f4ff';
  if(el<HTMLInputElement>('previewVertices').checked)for(const [i] of candidates){const p=projection!.point(i);if(!p)continue;hoverContext.beginPath();hoverContext.arc(p.x,p.y,2,0,Math.PI*2);hoverContext.fill();}
  el('brushCursor').classList.toggle('inactive',candidates.size===0);
@@ -328,7 +328,7 @@ function placeEndpoint(event:PointerEvent){
   }catch(error){status((error as Error).message,true);}
 }
 function finishStroke(){gradientDrag=null;flushBrush();pendingHover=null;weightStroke=null;lastDab=null;hoverContext.clearRect(0,0,hoverCanvas.width,hoverCanvas.height);dragging=false;strokePart=null;dragPlane=null;dragPoint=null;controls.enabled=!transform.dragging;}
-// Capture marker selection before TransformControls consumes an overlapping axis.
+// Перехватываем выбор маркера до того, как TransformControls обработает перекрывающую его ось.
 renderer.domElement.addEventListener('pointerdown',event=>{
   if(event.button!==0||!geometry||geometry.rigged||running||mode!=='bone'||transform.dragging)return;
   mesh?.updateWorldMatrix(true,true);updateMarkers();setRay(event);
@@ -444,7 +444,7 @@ insertPointButton.onclick=()=>{
   try{
     finishStroke();const path=activePath();
     const point=typeof selected==='number'?selected:path[0];
-    // Selected point denotes the following edge; the tip denotes its last edge.
+    // Выбранная точка обозначает следующее ребро, а конец цепочки — последнее ребро.
     const at=path.indexOf(point),child=path[Math.min(Math.max(at,0)+1,path.length-1)];
     const result=insertRestPoint(geometry,bones,child,mask,owners,skin);
     stop();snapshot();bones=result.bones;skin=result.skin;selected=result.selected;

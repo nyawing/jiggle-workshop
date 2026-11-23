@@ -50,7 +50,7 @@ export class WeightStroke {
     this.strength = clamp01(strength);
     this.target = clamp01(target);
     this.smoothTargets = new Float64Array(startWeights.length);
-    // Reduce welded nodes first so duplicate UV vertices cannot bias smoothing.
+    // Сначала объединяем склеенные узлы, чтобы дубли UV-вершин не искажали сглаживание.
     const means = graph.vertices.map(vertices => {
       const eligible = vertices.filter(index => this.editable(index));
       return eligible.length ? eligible.reduce((sum, index) => sum + this.start[index], 0) / eligible.length : NaN;
