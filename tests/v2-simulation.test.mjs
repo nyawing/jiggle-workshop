@@ -13,7 +13,12 @@ test('native V2 plus shared sampled-root wrapper runs in Workshop and accepts li
   for(let i=1;i<=120;i++)pose=JSON.parse((await api.get('step')(1/60,i*16/60,Math.sin(i/60*3),0,0,identity))[0]);
   assert.equal(pose.length,36);assert(pose.every(Number.isFinite));
   assert(pose.slice(24+3).some((n,i)=>Math.abs(n-[1,0,0,0,1,0,0,0,1][i])>.001),'weighted terminal endpoint must rotate');
-  const expected=JSON.parse(await readFile(new URL('./fixtures/v2-studio-2021-pose.json',import.meta.url),'utf8')).pose;
+  // Studio 2021, shared native V2 + sampled root, 120 steps at 60 Hz, three visible bones + unweighted calculation tail, root x=16t/y=sin(3t).
+  const expected=[
+    0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1,
+    0, 1.5, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1,
+    -1.9532241821289062, -2.2770423889160156, 0, 0.7557855844497681, -0.6548191905021667, 0, 0.6548191905021667, 0.7557855844497681, 0, 0, 0, 1,
+  ];
   const discrepancy=Math.max(...pose.map((n,i)=>Math.abs(n-expected[i])));
   assert(discrepancy<.001,`Workshop must match the actual Studio calculation: ${discrepancy}`);
   await api.get('configure')(.85,4,.5,2,3,0,.5,.4,90);
