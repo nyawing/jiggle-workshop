@@ -4,54 +4,68 @@
 При поставке клиенту комментарии удаляются только из нашего адаптера
 и автоматически созданного кода совместимости.
 """
+
 from pathlib import Path
 from lua_delivery_source import strip_comments
 
 ROOT = Path(__file__).resolve().parents[1]
-VENDOR = ROOT / 'vendor/smartbone'
+VENDOR = ROOT / "vendor/smartbone"
 
 
 def solver_source():
     modules = [
-        ('Config', 'Dependencies/Config.lua'),
-        ('UnitConversion', 'Dependencies/UnitConversion.lua'),
-        ('DefaultSettings', 'Dependencies/DefaultSettings.lua'),
-        ('ParticleTree', 'Components/ParticleTree.lua'),
-        ('Particle', 'Components/Particle.lua'),
-        ('SettingsMath', 'Dependencies/SettingsMath.lua'),
-        ('Utilities', 'Dependencies/Utilities.lua'),
+        ("Config", "Dependencies/Config.lua"),
+        ("UnitConversion", "Dependencies/UnitConversion.lua"),
+        ("DefaultSettings", "Dependencies/DefaultSettings.lua"),
+        ("ParticleTree", "Components/ParticleTree.lua"),
+        ("Particle", "Components/Particle.lua"),
+        ("SettingsMath", "Dependencies/SettingsMath.lua"),
+        ("Utilities", "Dependencies/Utilities.lua"),
     ]
     blocks = []
     for name, path in modules:
-        blocks.append('local function load_' + name + '()\n' + (VENDOR/path).read_text(encoding='utf-8') + '\nend')
+        blocks.append(
+            "local function load_"
+            + name
+            + "()\n"
+            + (VENDOR / path).read_text(encoding="utf-8")
+            + "\nend"
+        )
     # Зависимости объединены в таблицы. Модули аксессуаров и игр не загружаются
     # с правами CoreScript; в моделях предпросмотра нет Actor и копий LocalScript.
-    blocks.append('local dependencies, components = {}, {}')
+    blocks.append("local dependencies, components = {}, {}")
     for name, path in modules:
-        target = 'components' if path.startswith('Components/') else 'dependencies'
-        blocks.append(target + '.' + name + ' = load_' + name + '()')
-    blocks.append('local script = {WaitForChild = function(_, name)\n'
-                  'if name == "Dependencies" then return dependencies end\n'
-                  'if name == "Components" then return components end\nend}\n'
-                  'local function require(module) return module end')
-    original = (VENDOR/'SmartBone.lua').read_text(encoding='utf-8')
+        target = "components" if path.startswith("Components/") else "dependencies"
+        blocks.append(target + "." + name + " = load_" + name + "()")
+    blocks.append(
+        "local script = {WaitForChild = function(_, name)\n"
+        'if name == "Dependencies" then return dependencies end\n'
+        'if name == "Components" then return components end\nend}\n'
+        "local function require(module) return module end"
+    )
+    original = (VENDOR / "SmartBone.lua").read_text(encoding="utf-8")
     # Start отвечает за обнаружение игровых объектов и инфраструктуру Actor,
     # а не за расчёт физики. Исключаем его из предпросмотра, чтобы не запускать второй игровой процесс.
-    assert original.count('function module.Start()') == 1
-    original = original.split('function module.Start()')[0]
+    assert original.count("function module.Start()") == 1
+    original = original.split("function module.Start()")[0]
     # В клиенте 0.482 нет CFrame.Rotation; поставляемая копия вычисляет вращение самостоятельно.
     compat = [
-        ('parentPoint.TransformOffset.Rotation', '__rotOnly(parentPoint.TransformOffset)'),
-        ('Utilities.GetRotationBetween(referenceCFrame.UpVector, v1, v0).Rotation',
-         '__rotOnly(Utilities.GetRotationBetween(referenceCFrame.UpVector, v1, v0))'),
-        ('referenceCFrame.Rotation', '__rotOnly(referenceCFrame)'),
+        (
+            "parentPoint.TransformOffset.Rotation",
+            "__rotOnly(parentPoint.TransformOffset)",
+        ),
+        (
+            "Utilities.GetRotationBetween(referenceCFrame.UpVector, v1, v0).Rotation",
+            "__rotOnly(Utilities.GetRotationBetween(referenceCFrame.UpVector, v1, v0))",
+        ),
+        ("referenceCFrame.Rotation", "__rotOnly(referenceCFrame)"),
     ]
     for before, after in compat:
         assert original.count(before) == 1, before
         original = original.replace(before, after)
-    assert '.Rotation' not in original
-    original = 'local function __rotOnly(cf) return cf - cf.Position end\n' + original
-    destroy = '''
+    assert ".Rotation" not in original
+    original = "local function __rotOnly(cf) return cf - cf.Position end\n" + original
+    destroy = """
 function module:Destroy()
     if self.Removed then return end
     self.Removed = true
@@ -82,17 +96,31 @@ function module.new(part, roots)
     return originalNew(part, roots)
 end
 return module
-'''
+"""
     blocks.append(original + strip_comments(destroy))
-    return '\n'.join(blocks)
+    return "\n".join(blocks)
 
 
 def bootstrap_source():
-    host = (ROOT/'games/accessory-effects/SmartBonePreviewHost.lua').read_text(encoding='utf-8')
-    marker = '-- __SMARTBONE_SOLVER_FACTORY__'
+    host = (ROOT / "games/accessory-effects/SmartBonePreviewHost.lua").read_text(
+        encoding="utf-8"
+    )
+    marker = "-- __SMARTBONE_SOLVER_FACTORY__"
     assert host.count(marker) == 1
     before, after = host.split(marker)
-    host = (strip_comments(before) + '\nlocal function solverFactory()\n' + solver_source()
-            + '\nend\n' + strip_comments(after))
-    boot = (ROOT/'games/accessory-effects/SmartBonePreviewBootstrap.lua').read_text(encoding='utf-8')
-    return 'local function __NYAWING_SMARTBONE_PREVIEW_FACTORY__()\n' + host + '\nend\n' + strip_comments(boot)
+    host = (
+        strip_comments(before)
+        + "\nlocal function solverFactory()\n"
+        + solver_source()
+        + "\nend\n"
+        + strip_comments(after)
+    )
+    boot = (ROOT / "games/accessory-effects/SmartBonePreviewBootstrap.lua").read_text(
+        encoding="utf-8"
+    )
+    return (
+        "local function __NYAWING_SMARTBONE_PREVIEW_FACTORY__()\n"
+        + host
+        + "\nend\n"
+        + strip_comments(boot)
+    )

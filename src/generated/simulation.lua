@@ -1,4 +1,4 @@
-                                                                                                                                                                            
+                                                                                                                                                            
 local vectorMethods, vectorMeta = {}, {}
 local function vec(x,y,z) return setmetatable({X=x or 0,Y=y or 0,Z=z or 0},vectorMeta) end
 vectorMeta.__index=function(v,key)
@@ -165,10 +165,10 @@ local task={spawn=function(f,...) return f(...) end,wait=function() end}
 local function wait() end
 local function warn() end
 
-                                                                              
-                                                                               
+                                                                         
+                                                                                             
 local hairContactFrames
-                                                                                     
+                                                                                             
 local function hairGravityRelease(tree,torso)
     torso=torso or hairContactFrames and hairContactFrames[2]
     if not torso then return 0 end
@@ -289,13 +289,12 @@ local function constrainHairBend(point,parent,frontLock)
             local top=half.Y+(body.shoulderMargin or 0)
             local width=alongX and half.Z-math.abs(p.Z) or half.X-math.abs(p.X)
             if body.jumpShoulder and not alongX and side<0 and rest.Y<=top then
-                                                                         
-                                                              
+                                                                                       
                 top=top+.22
                 width=width+.13
             end
-                                                                             
-                                                                              
+                                                                                      
+                                                                                     
             local neckContact=body.neckContact or 0
             local frontPose=poseContact>0 and side<0 and not alongX and (stableFront or rest.Y<=half.Y+.35)
             local frontShoulder=neckContact>0 and side<0 and not alongX and
@@ -311,8 +310,7 @@ local function constrainHairBend(point,parent,frontLock)
             local edge=math.min(top-p.Y,p.Y+half.Y,width)
             local clearance=body.rearHeadContact and not alongX and side>0 and .002 or .012
             local limit=math.min(alongX and half.X or half.Z,restDepth)-clearance
-                                                                               
-                                              
+                                                                                              
             if body.forwardWalk and not alongX and side<0 and restDepth>=half.Z then
                 limit=math.max(limit,half.Z+.05)
             end
@@ -331,8 +329,8 @@ local function constrainHairBend(point,parent,frontLock)
             end
         end
         if bestT then
-                                                                                
-                                                                         
+                                                                                  
+                                                                                                     
             local a=parent.Anchored and 0 or 1-bestT
             local normal=bestNormal
             local offset=math.min(.12,bestDepth/(a*a+bestT*bestT))
@@ -6946,22 +6944,22 @@ end)()(loadNativeSolver)end
 return loadLegacySolver()
 end
 local controller,part,bones,lastPosition,solverMode
-local function numbers(text)
+local function parseNumberList(text)
     assert(type(text)=='string' and #text<10000)
     local out={};for token in string.gmatch(text,'[^,]+') do local n=tonumber(token);assert(n and n==n and math.abs(n)<10000);table.insert(out,n) end
     return out
 end
 local function configure(inertia,elasticity,windInfluence,windStrength,windSpeed,windAngle,stiffness,damping,rotationLimit,ribbonWind,ribbonDirection,capeMode,useGravity,ribbonSelection,selectedMode)
     assert(controller,'Start simulation first')
-    local function number(value,default,low,high)
+    local function checkedParameter(value,default,low,high)
         if value==nil then value=default end
         assert(type(value)=='number' and value==value and value>=low and value<=high,'Invalid physics parameter')
         return value
     end
-    local values={Inertia=number(inertia,0,0,1),Elasticity=number(elasticity,.5,0,solverMode=='v2-sync'and 12 or 1),
-        WindInfluence=number(windInfluence,0,0,1),WindStrength=number(windStrength,1,0,10),
-        WindSpeed=number(windSpeed,8,0,30),Stiffness=number(stiffness,part:GetAttribute('Stiffness'),0,1),
-        Damping=number(damping,part:GetAttribute('Damping'),0,1),RotationLimit=number(rotationLimit,180,0,180)}
+    local values={Inertia=checkedParameter(inertia,0,0,1),Elasticity=checkedParameter(elasticity,.5,0,solverMode=='v2-sync'and 12 or 1),
+        WindInfluence=checkedParameter(windInfluence,0,0,1),WindStrength=checkedParameter(windStrength,1,0,10),
+        WindSpeed=checkedParameter(windSpeed,8,0,30),Stiffness=checkedParameter(stiffness,part:GetAttribute('Stiffness'),0,1),
+        Damping=checkedParameter(damping,part:GetAttribute('Damping'),0,1),RotationLimit=checkedParameter(rotationLimit,180,0,180)}
     part:SetAttribute('SmartBoneWindAnimation',ribbonWind==true)
     local rows={}
     for index,direction in (ribbonSelection or ''):gmatch('(%d+):([%a]+)')do
@@ -6975,7 +6973,7 @@ local function configure(inertia,elasticity,windInfluence,windStrength,windSpeed
     ribbonDirection=ribbonDirection or 'mixed'
     assert(ribbonDirection=='mixed'or ribbonDirection=='horizontal'or ribbonDirection=='vertical'or ribbonDirection=='depth','Invalid ribbon direction')
     part:SetAttribute('SmartBoneWindDirection',ribbonDirection)
-    local angle=math.rad(number(windAngle,0,-180,180))
+    local angle=math.rad(checkedParameter(windAngle,0,-180,180))
     values.WindDirection=vec(math.cos(angle),0,math.sin(angle))
     for name,value in pairs(values)do
         part:SetAttribute(name,value)
@@ -6992,14 +6990,15 @@ end
 local function initialize(positionsText,parentsText,rotationsText,stiffness,damping,sizeX,sizeY,sizeZ,x,y,z,yaw,rotationLimit,orientationText,mode)
     if controller then controller:Destroy() end
     if part then part:Destroy()end
-    local positions,parents,rotations=numbers(positionsText),numbers(parentsText),numbers(rotationsText)
+    local positions,parents,rotations=parseNumberList(positionsText),parseNumberList(parentsText),parseNumberList(rotationsText)
     assert(#parents>=3 and #parents<=26 and #positions==#parents*3 and #rotations==#parents*9)
     part=make('MeshPart');part.Size=vec(sizeX,sizeY,sizeZ)
     part.Parent=workspace
     solverMode=mode or 'legacy';assert(solverMode=='legacy'or solverMode=='v1-sync'or solverMode=='v2-sync','Invalid solver')
-                                                                                                                                                                                                                    
+                                                                                
+                                                                                      
     part.CFrame=CFrame.new(x or 0,y or 0,z or 0)*CFrame.Angles(0,yaw or 0,0)
-    if orientationText then local r=numbers(orientationText);assert(#r==9);part.CFrame=cf(part.Position,r)end
+    if orientationText then local r=parseNumberList(orientationText);assert(#r==9);part.CFrame=cf(part.Position,r)end
     part.attrs={Stiffness=math.clamp(stiffness,0,1),Damping=math.clamp(damping,0,1),WindInfluence=0,Inertia=0,UpdateRate=60}
     if rotationLimit ~= nil then
         assert(type(rotationLimit)=="number" and rotationLimit==rotationLimit and rotationLimit>=0 and rotationLimit<=180)
@@ -7017,7 +7016,8 @@ local function initialize(positionsText,parentsText,rotationsText,stiffness,damp
         bones[i]=bone
     end
     if solverMode=='v2-sync'then
-                                                                                                                                                                                                                                
+                                                                                 
+                                                                                                 
         for _,bone in ipairs(bones)do
             if bone.Parent:IsA('Bone')and not bone:FindFirstChildWhichIsA('Bone')then
                 local length=(bone.WorldPosition-bone.Parent.WorldPosition).Magnitude
@@ -7028,7 +7028,7 @@ local function initialize(positionsText,parentsText,rotationsText,stiffness,damp
             end
         end
     end
-                                                                                 
+                                                                             
     local roots={}
     for i,parentIndex in ipairs(parents) do if parentIndex==0 then table.insert(roots,bones[i]) end end
     controller=loadSolver(solverMode).new(part,roots);controller.InRange=true
@@ -7041,7 +7041,7 @@ local function step(dt,x,y,z,yaw,orientationText,contactText,jumping,neckY)
     local previousFrames=hairContactFrames
     hairContactFrames=nil
     if contactText then
-        local values=numbers(contactText)
+        local values=parseNumberList(contactText)
         assert(#values==30,'Invalid hair contact frames')
         hairContactFrames={}
         for i=1,30,15 do
@@ -7056,7 +7056,7 @@ local function step(dt,x,y,z,yaw,orientationText,contactText,jumping,neckY)
     assert(controller and dt==dt and dt>0 and dt<=(solverMode~='legacy'and 10 or .1))
     local position=vec(x,y,z)
     part.CFrame=CFrame.new(position)*CFrame.Angles(0,yaw,0)
-    if orientationText then local r=numbers(orientationText);assert(#r==9);part.CFrame=cf(position,r)end
+    if orientationText then local r=parseNumberList(orientationText);assert(#r==9);part.CFrame=cf(position,r)end
     if solverMode=='legacy'and(position-lastPosition).Magnitude>8 then
         for _,tree in ipairs(controller.ParticleTrees) do controller:PreUpdate(tree);controller:ResetParticles(tree) end
     end

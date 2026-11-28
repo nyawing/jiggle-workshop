@@ -1,4 +1,4 @@
--- Минимальный адаптер математики и объектов Roblox для проверенного модуля SmartBone. Это не универсальный эмулятор Roblox и не исполнитель скриптов импортируемых ассетов.
+-- Адаптер реализует математику и объекты, необходимые SmartBone в редакторе. Он не эмулирует Roblox целиком и не запускает код импортированных аксессуаров.
 local vectorMethods, vectorMeta = {}, {}
 local function vec(x,y,z) return setmetatable({X=x or 0,Y=y or 0,Z=z or 0},vectorMeta) end
 vectorMeta.__index=function(v,key)

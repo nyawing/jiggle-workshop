@@ -1,9 +1,42 @@
-/** Линейное поле в координатах экрана, независимое от числа событий указателя и плотности меша. Проекцию, перекрытия и область действия по компонентам задаёт редактор. */
-export function linearGradient(start:{x:number;y:number},end:{x:number;y:number},points:Iterable<[number,{x:number;y:number}]>,weights:Float32Array,owners:string[],activeChain:string,from=0,to=1,strength=1){
- if(![start.x,start.y,end.x,end.y,from,to,strength].every(Number.isFinite)||[from,to,strength].some(n=>n<0||n>1)||owners.length!==weights.length)throw new Error('Некорректные параметры градиента.');
- const dx=end.x-start.x,dy=end.y-start.y,length=dx*dx+dy*dy,changes=new Map<number,number>();
- if(length<16)return changes;
- for(const [i,p] of points){if(!Number.isInteger(i)||i<0||i>=weights.length||!Number.isFinite(p.x+p.y))throw new Error('Не удалось определить положение вершины на экране.');if(owners[i]&&owners[i]!==activeChain)continue;
- const t=Math.max(0,Math.min(1,((p.x-start.x)*dx+(p.y-start.y)*dy)/length));changes.set(i,weights[i]+(from+(to-from)*t-weights[i])*strength);
- }return changes;
+/**
+ * Распределяет веса вдоль экранного отрезка. Результат не зависит от частоты
+ * событий мыши или плотности сетки. Доступные вершины заранее выбирает редактор.
+ */
+export function linearGradient(start: {
+    x: number;
+    y: number;
+}, end: {
+    x: number;
+    y: number;
+}, points: Iterable<[
+    number,
+    {
+        x: number;
+        y: number;
+    }
+]>, weights: Float32Array, owners: string[], activeChain: string, from = 0, to = 1, strength = 1) {
+    const coordinates = [start.x, start.y, end.x, end.y, from, to, strength];
+    const outsideRange = [from, to, strength].some(value => value < 0 || value > 1);
+    if (!coordinates.every(Number.isFinite) || outsideRange || owners.length !== weights.length) {
+        throw new Error('Проверьте координаты, диапазон весов и силу градиента.');
+    }
+    const horizontal = end.x - start.x, vertical = end.y - start.y;
+    const squaredLength = horizontal * horizontal + vertical * vertical;
+    const updates = new Map<number, number>();
+    if (squaredLength < 16)
+        return updates;
+    for (const [vertexIndex, screenPoint] of points) {
+        if (!Number.isInteger(vertexIndex) || vertexIndex < 0 || vertexIndex >= weights.length ||
+            !Number.isFinite(screenPoint.x + screenPoint.y)) {
+            throw new Error('Не найдены корректные экранные координаты вершины.');
+        }
+        if (owners[vertexIndex] && owners[vertexIndex] !== activeChain)
+            continue;
+        const projection = ((screenPoint.x - start.x) * horizontal +
+            (screenPoint.y - start.y) * vertical) / squaredLength;
+        const fraction = Math.max(0, Math.min(1, projection));
+        const previous = weights[vertexIndex];
+        updates.set(vertexIndex, previous + (from + (to - from) * fraction - previous) * strength);
+    }
+    return updates;
 }

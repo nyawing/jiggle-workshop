@@ -1,8 +1,8 @@
 local workshopLagRoots,workshopLagBack={},nil
 local function applyWorkshopWalkLag(tree)
     if not workshopLagBack or not tree.Root or not workshopLagRoots[tree.Root.Name] then return end
-    -- Смещаем только выбранную цепочку. Длину звеньев и контакты
-    -- обрабатывает основной солвер.
+    -- Сдвиг применяется к выбранной цепочке. За контакты и длину звеньев
+    -- отвечает основной солвер.
     local advance=-tree.ObjectMove:Dot(workshopLagBack)
     if advance<=0 then return end
     local offset=workshopLagBack*math.min(.022,advance*.08)
