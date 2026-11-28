@@ -1,8 +1,4 @@
-"""Bundle the existing SmartBone solver, not asset-supplied executable code.
-
-Original/vendor sources and their comments remain untouched. Only our adapter
-and generated compatibility glue are comment-stripped for client delivery.
-"""
+'Собрать существующий модуль физики SmartBone, не исполняя код из ассетов.\n\nОригинальные исходники стороннего разработчика и их комментарии не меняются.\nПри поставке клиенту комментарии удаляются только из нашего адаптера\nи автоматически созданного кода совместимости.\n'
 from pathlib import Path
 from lua_delivery_source import strip_comments
 

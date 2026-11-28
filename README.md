@@ -1,14 +1,14 @@
 # Jiggle Workshop
 
-A Windows editor for Nyawing accessories with flexible details: capes, tails, ribbons and hanging ornaments.
+Use Jiggle Workshop on Windows to prepare flexible Nyawing accessories, including capes, tails, ribbons and hanging decorations.
 
 ## Get started
 
-Download the Windows x64 ZIP from Releases, extract the entire folder and run **Jiggle Workshop.exe**. Keep the resources folder beside the executable. No separate Python or Node installation is required.
+Extract the complete Windows x64 release into a folder, then launch **Jiggle Workshop.exe**. Leave resources beside the executable; the portable release already includes its Python and Node runtime.
 
 1. Open an accessory RBXM/RBXMX, a saved .jiggle.json project, or load an accessory by its catalog ID.
-2. Select the flexible surface and create a chain with a start and endpoint. Add bend points where needed.
-3. Paint weights or use a gradient. Zero weight keeps a surface rigid; stronger weights make it follow the chain.
+2. Mark the surface that should bend, place the chain start and end, and add intermediate bend points as needed.
+3. Use the brush or gradient to distribute weights. A weight of zero leaves the surface fixed; increasing it makes the surface follow the chain more closely.
 4. Preview the accessory in motion or try it on the character with walking and jumping.
 5. To animate a particular chain, select its part in Bones and enable its wind wave, then choose a direction.
 6. Save the editable project. Export the mesh and accessory ZIP when ready; upload the mesh and supply its asset ID in the export dialog.
@@ -25,7 +25,7 @@ Imported accessory scripts are not executed. Keep the original file if you need 
 
 ## Notes
 
-The preview uses a trusted SmartBone solver through a compatibility adapter, rather than the full Roblox engine. Check the exported item in game before publishing. Imported legacy projects retain their saved settings. Existing skinned meshes can have import/export restrictions; keep source backups.
+The preview runs SmartBone through an editor compatibility layer. It does not contain the full Roblox engine, so check exported items in game before publishing. Saved settings are retained when an older project is opened. Keep the original files: import and export of meshes with an existing skin may be restricted.
 
 ## Development
 
@@ -34,3 +34,7 @@ Install dependencies with `npm ci`, build with `npm run build`, run unit tests w
 ## Licenses
 
 Third-party notices are included in `licenses`. Original SmartBone and other vendor notices are retained.
+
+## Подготовка проверок исходников
+
+Для сборки из исходников нужны Node.js/npm и Python 3. Установите Python-зависимости из `backend/requirements.txt`. Для чтения и записи двоичного RBXM положите `rbxmk.exe` в `backend/`; сторонний исполняемый файл в Source.zip не включён. Проверки интерфейса запускаются через `node tests/ui-smoke.mjs` в скрытом окне Electron.

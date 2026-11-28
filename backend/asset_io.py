@@ -1,4 +1,4 @@
-"""Bounded accessory import and skinned v4 export. No asset code execution."""
+'Чтение аксессуаров с проверкой ограничений и запись взвешенных мешей v4. Вложенный код моделей не запускается.'
 import base64
 import copy
 import hashlib
@@ -79,7 +79,7 @@ ATTACHMENT_TYPES={'HatAttachment':'hat','HairAttachment':'hair','FaceFrontAttach
 
 
 def accessory_category(accessory):
-    """Classification hints, not an authorization or a substitute for server validation."""
+    'Подсказки классификации, а не разрешение доступа и не замена серверной проверки.'
     handle,_=handles(accessory)
     attachments=sorted({value(n,'Name') for n in handle.findall('Item') if n.get('class')=='Attachment'})
     candidates={ATTACHMENT_TYPES[n] for n in attachments if n in ATTACHMENT_TYPES}
@@ -93,7 +93,7 @@ def accessory_category(accessory):
 
 
 def apply_metadata_category(result,category):
-    if category=='accessory':return  # Legacy coarse metadata cannot disambiguate.
+    if category=='accessory':return  # Старых обобщённых метаданных недостаточно для однозначного выбора.
     if category not in CATEGORY_IDS:return
     evidence=result.get('categoryEvidence',{})
     candidates=set(evidence.get('candidates',[]));candidates.add(category)
@@ -171,7 +171,7 @@ def handles(accessory):
 
 
 def fetch_roblox_asset(uri, folder=None):
-    """Public delivery only: no browser profile, cookie jar or stored credentials."""
+    'Только публичная выдача: без профиля браузера, хранилища cookie и сохранённых учётных данных.'
     match=re.search(r'(?:rbxassetid://|[?&]id=)(\d+)',uri or '')
     if not match:raise ValueError('В ссылке ассета отсутствует ID.')
     class PublicRedirect(urllib.request.HTTPRedirectHandler):
@@ -211,7 +211,7 @@ def fetch_asset(uri, folder):
 
 
 def reference_id(reference):
-    """Extract an ID, never request the user-supplied URL itself."""
+    'Извлечь ID, не выполняя запрос по URL, переданному пользователем.'
     if not isinstance(reference,str) or len(reference)>2048:
         raise ValueError('Вставьте ID предмета или ссылку на его страницу.')
     reference=reference.strip()
@@ -276,8 +276,7 @@ def import_reference(reference):
         try:
             raw=fetch_asset('rbxassetid://'+asset_id,temp)
         except urllib.error.HTTPError as error:
-            # Bare IDs also accept original asset IDs when there is no catalog
-            # row. Explicit catalog URLs never fall through to a different item.
+            # Один числовой ID может означать исходный ассет, если записи каталога нет. Явная ссылка каталога не должна переключаться на другой предмет.
             if error.code==404 and bare and catalog:
                 catalog=False;asset_id=number
                 try:raw=fetch_asset('rbxassetid://'+asset_id,temp)
@@ -310,8 +309,7 @@ def parse_mesh(data):
         header,_,nv,nf,nl,nb,names,ns,hq,_=struct.unpack_from('<HHIIHHIHBB',data,13)
         if header not in (24,32): raise ValueError('Неизвестная структура меша v4/v5.')
         start=13+header;stride=40;faces_start=start+nv*stride+(nv*8 if nb else 0);rigged=bool(nb)
-        # Faces from subsequent LODs overlap LOD0; they are alternatives, not
-        # extra geometry. Keep only the highest-detail interval.
+        # Грани последующих LOD перекрывают LOD0: это альтернативы, а не дополнительная геометрия. Оставляем только самый подробный интервал.
         lod_start=faces_start+nf*12
         if nl>=2:
             if nl>128 or lod_start+nl*4>len(data):raise ValueError('Повреждённая таблица LOD.')
@@ -351,9 +349,7 @@ def parse_draco_mesh(data):
             if offset+4>len(payload):raise ValueError('Повреждённые веса v7.')
             rigged=rigged or bool(struct.unpack_from('<I',payload,offset)[0])
         if tag==b'LODS\0\0\0\0':
-            # LODS v1: three metadata bytes, uint32 boundary count, followed
-            # by face offsets. Each interval is an alternative detail level,
-            # not additional geometry; rendering all intervals causes overlap.
+            # LODS v1: три байта метаданных, число границ uint32 и смещения граней. Каждый интервал — альтернативная детализация; отрисовка всех интервалов одновременно создаёт наложение.
             if lod_offsets is not None or version!=1 or len(payload)<7:
                 raise ValueError('Неизвестный или повреждённый блок LOD меша v7.')
             count=struct.unpack_from('<I',payload,3)[0]
@@ -367,8 +363,7 @@ def parse_draco_mesh(data):
     if points.ndim!=2 or points.shape[1]!=3 or not 3<=len(points)<=100000 or faces.ndim!=2 or faces.shape[1]!=3 or not 1<=len(faces)<=150000:raise ValueError('Меш Draco превышает предел сложности.')
     if not np.isfinite(points).all() or (np.abs(points)>1e7).any() or (faces<0).any() or (faces>=len(points)).any():raise ValueError('Некорректная геометрия Draco.')
     if lod_offsets is not None:
-        # Roblox also emits a type-0 [0, 0] sentinel when there are no
-        # alternative LODs. It denotes the whole core mesh, not an empty LOD0.
+        # Если альтернативных LOD нет, Roblox может записывать маркер типа 0 со значением [0,0]. Он обозначает весь основной меш, а не пустой LOD0.
         no_lods=lod_type==0 and lod_offsets==(0,0)
         if not no_lods:
             if (lod_offsets[0]!=0 or lod_offsets[1]<=0 or lod_offsets[-1]!=len(faces) or
