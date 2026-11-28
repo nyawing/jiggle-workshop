@@ -1,4 +1,4 @@
-                                                                                                                                                                            
+                                                                                                                                                            
 local vectorMethods, vectorMeta = {}, {}
 local function vec(x,y,z) return setmetatable({X=x or 0,Y=y or 0,Z=z or 0},vectorMeta) end
 vectorMeta.__index=function(v,key)
@@ -165,10 +165,10 @@ local task={spawn=function(f,...) return f(...) end,wait=function() end}
 local function wait() end
 local function warn() end
 
-                                                                              
-                                                                               
+                                                                         
+                                                                                             
 local hairContactFrames
-                                                                                     
+                                                                                             
 local function hairGravityRelease(tree,torso)
     torso=torso or hairContactFrames and hairContactFrames[2]
     if not torso then return 0 end
@@ -289,13 +289,12 @@ local function constrainHairBend(point,parent,frontLock)
             local top=half.Y+(body.shoulderMargin or 0)
             local width=alongX and half.Z-math.abs(p.Z) or half.X-math.abs(p.X)
             if body.jumpShoulder and not alongX and side<0 and rest.Y<=top then
-                                                                         
-                                                              
+                                                                                       
                 top=top+.22
                 width=width+.13
             end
-                                                                             
-                                                                              
+                                                                                      
+                                                                                     
             local neckContact=body.neckContact or 0
             local frontPose=poseContact>0 and side<0 and not alongX and (stableFront or rest.Y<=half.Y+.35)
             local frontShoulder=neckContact>0 and side<0 and not alongX and
@@ -311,8 +310,7 @@ local function constrainHairBend(point,parent,frontLock)
             local edge=math.min(top-p.Y,p.Y+half.Y,width)
             local clearance=body.rearHeadContact and not alongX and side>0 and .002 or .012
             local limit=math.min(alongX and half.X or half.Z,restDepth)-clearance
-                                                                               
-                                              
+                                                                                              
             if body.forwardWalk and not alongX and side<0 and restDepth>=half.Z then
                 limit=math.max(limit,half.Z+.05)
             end
@@ -331,8 +329,8 @@ local function constrainHairBend(point,parent,frontLock)
             end
         end
         if bestT then
-                                                                                
-                                                                         
+                                                                                  
+                                                                                                     
             local a=parent.Anchored and 0 or 1-bestT
             local normal=bestNormal
             local offset=math.min(.12,bestDepth/(a*a+bestT*bestT))
@@ -353,8 +351,8 @@ end
 local workshopLagRoots,workshopLagBack={},nil
 local function applyWorkshopWalkLag(tree)
     if not workshopLagBack or not tree.Root or not workshopLagRoots[tree.Root.Name] then return end
-                                                                          
-                                       
+                                                                         
+                                
     local advance=-tree.ObjectMove:Dot(workshopLagBack)
     if advance<=0 then return end
     local offset=workshopLagBack*math.min(.022,advance*.08)

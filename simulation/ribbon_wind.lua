@@ -1,4 +1,5 @@
--- Эксперимент только для Workshop. Добавляем бегущую поперечную силу перед существующими ограничениями V1, не заменяя рассчитанную позу и не двигая настоящий Handle.
+-- Эксперимент Workshop: поперечная волна дополняет расчёт V1 перед ограничениями.
+-- Рассчитанная поза сохраняется, настоящий Handle остаётся на месте.
 return function(solver)
     local new,update=solver.new,solver.UpdateParticles
     function solver.new(part,roots)
@@ -13,7 +14,8 @@ return function(solver)
         update(self,tree,delta,index)
         self.Settings.WindInfluence=influence
         if not enabled then tree.RibbonTime=0;return end
-        -- V1 передаёт прошедшие секунды, умноженные на десять. Этот таймер следует фиксированным шагам симуляции и не зависит от частоты отрисовки.
+        -- В V1 delta равна прошедшим секундам, умноженным на десять.
+        -- Таймер продвигается шагами симуляции независимо от частоты отрисовки.
         tree.RibbonTime=(tree.RibbonTime or 0)+delta/10
         local t=tree.RibbonTime
         local frame=self.RibbonSource.CFrame

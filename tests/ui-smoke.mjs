@@ -6,12 +6,15 @@ import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import * as THREE from 'three';
+import {execFileSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const output=path.resolve(process.env.WORKSHOP_SMOKE_OUTPUT||path.resolve(root,'../../_work/jiggle-workshop-ui-0.1.2'));await mkdir(output,{recursive:true});
 const errors=[];
 const app=await electron.launch({...(process.env.WORKSHOP_EXE?{executablePath:process.env.WORKSHOP_EXE,args:[]}:{args:[root]}),env:{...process.env,WORKSHOP_TEST:'1'}});
 try{
   const page=await app.firstWindow();page.setDefaultTimeout(20000);page.on('pageerror',error=>errors.push(error.message));page.on('dialog',dialog=>dialog.accept());
+  await app.evaluate(({BrowserWindow,dialog})=>{BrowserWindow.getAllWindows()[0].webContents.setBackgroundThrottling(false);dialog.showMessageBoxSync=()=>1;});
   async function control(id){
     if(id==='open')return {click:()=>page.locator('#open').evaluate(node=>node.click())};
     if(id==='save')return {click:()=>page.locator('#save').evaluate(node=>node.click())};
@@ -32,10 +35,10 @@ try{
   if(process.env.WORKSHOP_EXE)assert.equal(await app.evaluate(({app})=>app.isPackaged),true,'portable test must use the frozen backend');
   console.log('Window ready');
   await page.waitForSelector('#demo');assert.equal(await page.locator('aside').isVisible(),false,'empty workspace hides editing tools');
-  assert.equal(await page.locator('#open').isVisible(),false);
+  assert.equal(await page.locator('#open').isVisible(),true,'desktop users can open a project before loading geometry');
   assert.equal(await page.locator('#exportMenu').isVisible(),false);
   assert.equal(await page.locator('footer > span').count(),1,'footer only shows status');
-  assert((await page.locator('#empty p').textContent()).includes('полную ссылку'));
+  assert((await page.locator('#empty p').textContent()).includes('проект'),'empty view explains how to open a project');
   console.log('UI ready');
   await (await control('demo')).click();
   assert.equal(await page.locator('aside').isVisible(),true,'loaded geometry reveals editing tools');
@@ -87,7 +90,13 @@ try{
   [0,1,2].forEach((n,i)=>raw.writeUInt32LE(n,145+i*4));await writeFile(path.join(temp,'987.mesh'),raw);
   async function openFile(file){await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},file);await (await control('open')).click();}
   async function saveTo(file){await app.evaluate(({dialog},file)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:file});},file);}
-  await openFile(fixture);await page.waitForFunction(()=>document.querySelector('#label').textContent.startsWith('Fixture'));
+  // В 0.5.9 кнопка открытия принимает проекты, а RBXM разбирается импортёром.
+  // Готовим проект настоящим импортёром, сохраняя двоичный оригинал для экспорта.
+  const imported=JSON.parse(execFileSync('python',[path.join(root,'backend/asset_io.py'),'import'],{input:JSON.stringify({path:fixture}),encoding:'utf8',windowsHide:true}));
+  assert(!imported.error,imported.error);
+  const original=await readFile(fixture),fixtureProject=path.join(temp,'fixture.jiggle.json');
+  await writeFile(fixtureProject,JSON.stringify({version:1,...imported,bones:[],mask:Array(imported.geometry.positions.length/3).fill(0),skinIndices:[],skinWeights:[],anchor:[0,1,0],tip:[0,-1,0],settings:{stiffness:.5,damping:.3},sourceBase64:original.toString('base64'),sourceHash:createHash('sha256').update(original).digest('hex')}));
+  await openFile(fixtureProject);await page.waitForFunction(()=>document.querySelector('#label').textContent.startsWith('Fixture')).catch(async error=>{console.error(await page.locator('#status').textContent());throw error;});
   await createBasic();
   await (await control('boneSelect')).selectOption('1');for(const [axis,value] of [['X','0'],['Y','1'],['Z','0']])await (await control('bone'+axis)).fill(value);await (await control('applyPosition')).click();
   await (await control('boneSelect')).selectOption('2');for(const [axis,value] of [['X','0'],['Y','-1'],['Z','0']])await (await control('bone'+axis)).fill(value);await (await control('applyPosition')).click();
@@ -254,4 +263,4 @@ try{
   assert(JSON.parse(await readFile(paintSaved,'utf8')).mask.every(n=>n===0),'Ctrl+Z on a slider with Cyrillic layout must undo the whole stroke');
   assert.equal(errors.length,0,errors.join('\n'));
   console.log('PASS invisible Electron UI: bone click/XYZ/XYZ gizmo/center/plane/undo, exact rest and weights persistence, edited SmartBone, binary import, zero-weight mesh and RBXM ZIP export; screenshots in '+output);
-}finally{await app.close();}
+}finally{await app.evaluate(({app})=>app.exit(0)).catch(()=>{});await app.close();}
