@@ -1,10 +1,10 @@
 # Jiggle Workshop
 
-Desktop accessory rigging and weight-painting editor for Nyawing.
+Jiggle Workshop lets you rig Nyawing accessories and paint their deformation weights on Windows.
 
 ## Run from source
 
-Requires Node.js/npm and Python 3 on PATH.
+Install Node.js with npm and Python 3, and make both available through PATH.
 
 ```sh
 npm ci
@@ -17,9 +17,9 @@ For binary RBXM import/export, install rbxmk and place `rbxmk.exe` in `backend/`
 The binary is not included. Importing by catalog ID uses Nyawing's public service
 and requires network access. Local editing does not require a Nyawing login.
 
-The SmartBone solver and its MIT notice are included under `vendor/` and `licenses/`.
-Third-party dependencies retain their respective licenses. No additional license
-grant is asserted for project-authored code.
+The `vendor/` and `licenses/` folders contain SmartBone and its MIT notice.
+Each third-party dependency keeps its own license. This document does not grant
+any additional license for code authored by the project.
 
 ## 0.5.0: manual gradient, MCP retired
 
@@ -378,3 +378,7 @@ local explanatory comments and original SmartBone/vendor notices are retained.
 `scripts/package_portable.py` assembles a fresh candidate under repository `_work`
 and refuses to replace any existing build. Electron, Chromium, Three, Luau,
 SmartBone, rbxmk, Python and PyInstaller license notices accompany the build.
+
+## Подготовка проверок исходников
+
+Для сборки из исходников нужны Node.js/npm и Python 3. Установите Python-зависимости из `backend/requirements.txt`. Для чтения и записи двоичного RBXM положите `rbxmk.exe` в `backend/`; сторонний исполняемый файл в Source.zip не включён. Проверки интерфейса запускаются через `node tests/ui-smoke.mjs` в скрытом окне Electron.

@@ -1167,7 +1167,7 @@ local function initialize(positionsText,parentsText,rotationsText,stiffness,damp
         bone.WorldCFrame=part.CFrame*cf(world,rotation)
         bones[i]=bone
     end
-                                                                      
+                                                                                 
     local roots={}
     for i,parentIndex in ipairs(parents) do if parentIndex==0 then table.insert(roots,bones[i]) end end
     controller=solver.new(part,roots);controller.InRange=true

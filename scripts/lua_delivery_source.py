@@ -1,4 +1,4 @@
-"""Remove explanatory Lua comments from delivery copies, never string contents."""
+'Удалять поясняющие комментарии Lua только из поставляемых копий, не меняя содержимое строк.'
 import re
 
 LONG = re.compile(r'\[(=*)\[')

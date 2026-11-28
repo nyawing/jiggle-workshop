@@ -1,4 +1,4 @@
-"""Bundle the project's trusted SmartBone solver with its original attribution."""
+'Соединить адаптер редактора с проверенными солверами SmartBone и сохранить их авторские уведомления.'
 from pathlib import Path
 import sys
 

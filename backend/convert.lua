@@ -1,4 +1,4 @@
--- Только сериализуем модель; скрипты внутри неё не выполняем.
+-- Конвертер читает и записывает данные модели, не запуская вложенные скрипты.
 local input, output, inputFormat, outputFormat = ...
 local objects = fs.read(input, inputFormat)
 -- RBXMX represents BrickColor with an <int> element. Without a descriptor,
