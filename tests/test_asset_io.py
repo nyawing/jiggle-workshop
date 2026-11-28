@@ -248,9 +248,7 @@ class Tests(unittest.TestCase):
             self.assertNotIn('catalogItemId',result)
 
     def test_brickcolor_binary_wire_type_is_11(self):
-        sys.path.insert(0,str(APP.parents[1]/'tools'))
-        from build_accessory_effects_client import model_chunks
-        from rbxm_tree import read_string
+        from rbxm_chunks import model_chunks, read_string
         with tempfile.TemporaryDirectory() as temp:
             xml=Path(temp)/'model.rbxmx';binary=Path(temp)/'model.rbxm'
             xml.write_text('<roblox version="4"><Item class="MeshPart" referent="part"><Properties><string name="Name">Ear</string><int name="BrickColor">194</int></Properties></Item></roblox>',encoding='utf-8')
