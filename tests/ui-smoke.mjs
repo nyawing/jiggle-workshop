@@ -12,6 +12,7 @@ const errors=[];
 const app=await electron.launch({...(process.env.WORKSHOP_EXE?{executablePath:process.env.WORKSHOP_EXE,args:[]}:{args:[root]}),env:{...process.env,WORKSHOP_TEST:'1'}});
 try{
   const page=await app.firstWindow();page.setDefaultTimeout(20000);page.on('pageerror',error=>errors.push(error.message));page.on('dialog',dialog=>dialog.accept());
+  await app.evaluate(({BrowserWindow,dialog})=>{BrowserWindow.getAllWindows()[0].webContents.setBackgroundThrottling(false);dialog.showMessageBoxSync=()=>1;});
   async function control(id){
     if(id==='open')return {click:()=>page.locator('#open').evaluate(node=>node.click())};
     if(id==='save')return {click:()=>page.locator('#save').evaluate(node=>node.click())};
@@ -254,4 +255,4 @@ try{
   assert(JSON.parse(await readFile(paintSaved,'utf8')).mask.every(n=>n===0),'Ctrl+Z on a slider with Cyrillic layout must undo the whole stroke');
   assert.equal(errors.length,0,errors.join('\n'));
   console.log('PASS invisible Electron UI: bone click/XYZ/XYZ gizmo/center/plane/undo, exact rest and weights persistence, edited SmartBone, binary import, zero-weight mesh and RBXM ZIP export; screenshots in '+output);
-}finally{await app.close();}
+}finally{await app.evaluate(({app})=>app.exit(0)).catch(()=>{});await app.close();}
