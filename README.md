@@ -7,7 +7,7 @@ Jiggle Workshop — Windows-редактор гибких аксессуаров
 | Материал | Ссылка |
 |---|---|
 | Программа для Windows x64 | [Windows x64 ZIP](https://github.com/nyawing/jiggle-workshop/releases/download/v0.5.9/Jiggle-Workshop-0.5.9-Windows-x64.zip) |
-| Исходники 0.5.9 | [Source.zip](https://github.com/nyawing/jiggle-workshop/releases/download/v0.5.9/Jiggle-Workshop-0.5.9-Source.zip) |
+| Исходники 0.5.9 | [Source code (ZIP)](https://github.com/nyawing/jiggle-workshop/archive/refs/tags/v0.5.9.zip) |
 | Контрольные суммы | [SHA256SUMS.txt](https://github.com/nyawing/jiggle-workshop/releases/download/v0.5.9/SHA256SUMS.txt) |
 | Текущие исходники main | [Скачать ZIP](https://github.com/nyawing/jiggle-workshop/archive/refs/heads/main.zip) |
 
